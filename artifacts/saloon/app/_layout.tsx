@@ -5,9 +5,9 @@ import {
   Inter_700Bold,
   useFonts,
 } from "@expo-google-fonts/inter";
-import { Stack, useRouter, useSegments } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
@@ -20,26 +20,31 @@ SplashScreen.preventAutoHideAsync();
 
 function AuthGuard() {
   const { user, loading } = useAuth();
-  const segments = useSegments();
   const router = useRouter();
+  const prevUserRef = useRef(user);
 
   useEffect(() => {
     if (loading) return;
-    const inProtected =
-      segments[0] === "(owner)" || segments[0] === "(customer)";
-    if (!user && inProtected) {
+    if (prevUserRef.current !== null && user === null) {
       router.replace("/");
     }
-  }, [user, loading, segments]);
+    prevUserRef.current = user;
+  }, [user, loading]);
 
   return null;
 }
 
 function RootLayoutNav() {
+  const { user } = useAuth();
+  const stackKey = user ? `auth-${user.id}` : "guest";
+
   return (
     <>
       <AuthGuard />
-      <Stack screenOptions={{ headerShown: false, animation: "fade" }}>
+      <Stack
+        key={stackKey}
+        screenOptions={{ headerShown: false, animation: "fade" }}
+      >
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="auth" options={{ headerShown: false }} />
         <Stack.Screen name="(customer)" options={{ headerShown: false }} />

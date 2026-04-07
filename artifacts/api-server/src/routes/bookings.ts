@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, bookingsTable, timeSlotsTable, saloonsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { verifyToken, type AuthRequest } from "../middlewares/auth.js";
 
 const router = Router();
@@ -59,10 +59,10 @@ router.get("/my", verifyToken, async (req: AuthRequest, res) => {
     const saloonIds = [...new Set(bookings.map((b) => b.saloonId))];
 
     const slots = slotIds.length > 0
-      ? await db.select().from(timeSlotsTable)
+      ? await db.select().from(timeSlotsTable).where(inArray(timeSlotsTable.id, slotIds))
       : [];
     const saloons = saloonIds.length > 0
-      ? await db.select().from(saloonsTable)
+      ? await db.select().from(saloonsTable).where(inArray(saloonsTable.id, saloonIds))
       : [];
 
     const slotMap = new Map(slots.map((s) => [s.id, s]));

@@ -37,6 +37,12 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - `artifacts/saloon/app/auth/register.tsx` — register screen (role-aware)
 - `artifacts/saloon/app/index.tsx` — role selector (auth-aware, auto-redirects if logged in)
 
+#### Navigation / Auth Architecture Notes
+- **Logout redirect**: `app/_layout.tsx` gives the `<Stack>` a dynamic `key` prop: `"auth-{userId}"` when logged in, `"guest"` when logged out. This forces React to unmount/remount the entire Stack on auth state change, clearing ghost screens (e.g. `(owner)` tab layout) that React Navigation keeps in the DOM.
+- **AuthGuard**: `_layout.tsx` includes an `AuthGuard` component that uses `useRef` to detect user→null transitions and calls `router.replace("/")` as a native fallback.
+- **Route groups and web URLs**: In Expo Router web mode, route groups (`(owner)`, `(customer)`) do not add URL path segments. Both root index and `(owner)/index` resolve to URL `/`. Using `router.replace("/")` inside the owner section navigates back to the owner dashboard — this is why the Stack `key` approach is required instead.
+- **bookings.ts fix**: `/my` endpoint uses `inArray` filter to scope slot/saloon queries to the current user's bookings only.
+
 #### Key Files
 - `app/_layout.tsx` — Root layout with LanguageProvider + AppProvider
 - `app/index.tsx` — Role selector (Customer / Saloon Owner)

@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
@@ -39,6 +40,8 @@ export default function ProfileScreen() {
   const { mySaloon, registerSaloon, updateSaloon } = useApp();
   const { user, logout } = useAuth();
   const { t } = useLanguage();
+
+  const router = useRouter();
 
   const [name, setName] = useState("");
   const [ownerName, setOwnerName] = useState("");
@@ -120,11 +123,8 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleLogout = () => {
-    Alert.alert("Logout", "Are you sure you want to logout?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Logout", style: "destructive", onPress: () => logout() },
-    ]);
+  const handleLogout = async () => {
+    await logout();
   };
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;

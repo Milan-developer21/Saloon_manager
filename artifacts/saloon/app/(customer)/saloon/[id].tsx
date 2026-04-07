@@ -65,6 +65,13 @@ export default function SaloonDetailScreen() {
   const [step, setStep] = useState<"browse" | "book">("browse");
   const [submitting, setSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (user) {
+      setCustomerName((prev) => prev || user.name);
+      setCustomerPhone((prev) => prev || user.phone);
+    }
+  }, [user]);
+
   const dateOptions = Array.from({ length: 7 }, (_, i) => getDateStr(i));
   const selectedSlot = slots.find((s) => s.id === selectedSlotId);
 
