@@ -26,7 +26,8 @@ function AuthGuard() {
   useEffect(() => {
     if (loading) return;
     if (prevUserRef.current !== null && user === null) {
-      router.replace("/");
+      const lastRole = prevUserRef.current.role;
+      router.replace({ pathname: "/auth/login", params: { role: lastRole } });
     }
     prevUserRef.current = user;
   }, [user, loading]);
