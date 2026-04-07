@@ -53,6 +53,10 @@ export function SlotButton({ time, status, onPress }: Props) {
         }
       }}
       activeOpacity={disabled ? 1 : 0.8}
+      accessibilityRole="button"
+      accessibilityLabel={`slot-${time}-${status}`}
+      accessibilityState={{ disabled, selected: status === "selected" }}
+      testID={`slot-${time}`}
     >
       <Text style={[styles.time, { color: s.text }]}>{formatTime(time)}</Text>
     </TouchableOpacity>

@@ -1,10 +1,10 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
+  Animated,
   Platform,
   RefreshControl,
   ScrollView,
@@ -64,6 +64,9 @@ export default function SaloonDetailScreen() {
   const [customerPhone, setCustomerPhone] = useState(user?.phone ?? "");
   const [step, setStep] = useState<"browse" | "book">("browse");
   const [submitting, setSubmitting] = useState(false);
+  const [toastMsg, setToastMsg] = useState("");
+  const [toastIsError, setToastIsError] = useState(false);
+  const toastOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (user) {
@@ -74,6 +77,17 @@ export default function SaloonDetailScreen() {
 
   const dateOptions = Array.from({ length: 7 }, (_, i) => getDateStr(i));
   const selectedSlot = slots.find((s) => s.id === selectedSlotId);
+
+  const showToast = (msg: string, delay = 2500, isError = true) => {
+    setToastMsg(msg);
+    setToastIsError(isError);
+    toastOpacity.setValue(0);
+    Animated.sequence([
+      Animated.timing(toastOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+      Animated.delay(delay),
+      Animated.timing(toastOpacity, { toValue: 0, duration: 400, useNativeDriver: true }),
+    ]).start();
+  };
 
   const loadSlots = useCallback(async () => {
     if (!saloonId) return;
@@ -96,10 +110,10 @@ export default function SaloonDetailScreen() {
   };
 
   const handleBook = async () => {
-    if (!customerName.trim()) { Alert.alert("", t("nameRequired")); return; }
-    if (!customerPhone.trim()) { Alert.alert("", t("phoneRequired")); return; }
-    if (!selectedService) { Alert.alert("", t("serviceRequired")); return; }
-    if (!selectedSlotId || !selectedSlot) { Alert.alert("", t("slotRequired")); return; }
+    if (!customerName.trim()) { showToast(t("nameRequired"), 2500, true); return; }
+    if (!customerPhone.trim()) { showToast(t("phoneRequired"), 2500, true); return; }
+    if (!selectedService) { showToast(t("serviceRequired"), 2500, true); return; }
+    if (!selectedSlotId || !selectedSlot) { showToast(t("slotRequired"), 2500, true); return; }
 
     setSubmitting(true);
     try {
@@ -111,13 +125,12 @@ export default function SaloonDetailScreen() {
         service: selectedService,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
-        t("bookingRequestSent"),
-        t("awaitingConfirmation"),
-        [{ text: t("ok"), onPress: () => { setStep("browse"); setSelectedSlotId(null); loadSlots(); } }]
-      );
+      showToast(t("bookingRequestSent"), 1600, false);
+      setTimeout(() => {
+        router.replace("/(customer)/my-bookings");
+      }, 1900);
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Booking failed");
+      showToast(err.message || "Booking failed", 2500, true);
     } finally {
       setSubmitting(false);
     }
@@ -139,6 +152,14 @@ export default function SaloonDetailScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <Animated.View
+        style={[styles.toast, { opacity: toastOpacity, backgroundColor: toastIsError ? "#C0390B" : "#2D9C5F" }]}
+        pointerEvents="none"
+      >
+        <Feather name={toastIsError ? "alert-circle" : "check-circle"} size={18} color="#FFF" />
+        <Text style={styles.toastText}>{toastMsg}</Text>
+      </Animated.View>
+
       <View style={[styles.header, { paddingTop: topPad + 12 }]}>
         <TouchableOpacity onPress={() => { if (step === "book") setStep("browse"); else router.back(); }}>
           <Feather name="arrow-left" size={24} color={colors.foreground} />
@@ -247,6 +268,9 @@ export default function SaloonDetailScreen() {
                   <TouchableOpacity
                     style={[styles.bookBtn, { backgroundColor: colors.primary }]}
                     onPress={() => setStep("book")}
+                    testID="book-slot-btn"
+                    accessibilityRole="button"
+                    accessibilityLabel="Book Slot"
                   >
                     <Text style={styles.bookBtnText}>{t("bookSlot")} – {formatTime(selectedSlot?.time ?? "")}</Text>
                     <Feather name="arrow-right" size={18} color="#FFF" />
@@ -304,6 +328,9 @@ export default function SaloonDetailScreen() {
               style={[styles.bookBtn, { backgroundColor: colors.primary, opacity: submitting ? 0.7 : 1 }]}
               onPress={handleBook}
               disabled={submitting}
+              testID="confirm-booking-btn"
+              accessibilityRole="button"
+              accessibilityLabel="Confirm Booking"
             >
               <Feather name="check-circle" size={18} color="#FFF" />
               <Text style={styles.bookBtnText}>{submitting ? t("loading") : t("confirm")}</Text>
@@ -317,6 +344,8 @@ export default function SaloonDetailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  toast: { position: "absolute", top: 56, left: 20, right: 20, zIndex: 100, flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 14, paddingHorizontal: 18, paddingVertical: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 10 },
+  toastText: { color: "#FFF", fontSize: 14, fontWeight: "700", flex: 1 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 12 },
   openBadge: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
   openDot: { width: 7, height: 7, borderRadius: 4 },
