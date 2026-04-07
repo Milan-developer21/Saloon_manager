@@ -100,7 +100,7 @@ export default function OwnerDashboard() {
           >
             <Text style={styles.regBtnText}>{t("registerNow")}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.switchRoleBtn} onPress={() => { logout(); router.replace("/"); }}>
+          <TouchableOpacity style={styles.switchRoleBtn} onPress={async () => { await logout(); router.replace("/"); }}>
             <Text style={[styles.switchRoleText, { color: colors.mutedForeground }]}>{t("logout")}</Text>
           </TouchableOpacity>
         </View>
@@ -135,7 +135,7 @@ export default function OwnerDashboard() {
               <Text style={{ color: language === "hi" ? "#FFF" : colors.foreground, fontWeight: "700", fontSize: 11 }}>हि</Text>
             </TouchableOpacity>
           </View>
-          <TouchableOpacity onPress={() => { logout(); router.replace("/"); }}>
+          <TouchableOpacity onPress={async () => { await logout(); router.replace("/"); }}>
             <Feather name="log-out" size={18} color={colors.mutedForeground} />
           </TouchableOpacity>
         </View>

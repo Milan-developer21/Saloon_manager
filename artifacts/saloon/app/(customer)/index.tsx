@@ -70,7 +70,7 @@ export default function BrowseSaloonsScreen() {
               <Text style={{ color: language === "hi" ? "#FFF" : colors.foreground, fontWeight: "700", fontSize: 11 }}>हि</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => { logout(); router.replace("/"); }}
+              onPress={async () => { await logout(); router.replace("/"); }}
               style={styles.switchBtn}
             >
               <Feather name="log-out" size={18} color={colors.mutedForeground} />
