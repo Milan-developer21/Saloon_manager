@@ -1,40 +1,48 @@
 const colors = {
   light: {
-    text: "#1a0a00",
-    tint: "#8B1A1A",
+    text: "#1A0800",
+    tint: "#C0390B",
 
-    background: "#FFF8F0",
-    foreground: "#1a0a00",
+    background: "#FFF8F2",
+    foreground: "#1A0800",
 
     card: "#FFFFFF",
-    cardForeground: "#1a0a00",
+    cardForeground: "#1A0800",
 
-    primary: "#8B1A1A",
+    primary: "#C0390B",
     primaryForeground: "#FFFFFF",
 
-    secondary: "#F5E6D3",
-    secondaryForeground: "#3D1A00",
+    secondary: "#FFF0E6",
+    secondaryForeground: "#5C1A00",
 
-    muted: "#F0E4D4",
-    mutedForeground: "#8B6B4A",
+    muted: "#F5E8DE",
+    mutedForeground: "#8B5E42",
 
-    accent: "#C4822A",
+    accent: "#E67E22",
     accentForeground: "#FFFFFF",
 
-    destructive: "#DC2626",
+    green: "#1E8449",
+    greenForeground: "#FFFFFF",
+    greenBg: "#E9F7EF",
+
+    red: "#C0392B",
+    redForeground: "#FFFFFF",
+    redBg: "#FDEDEC",
+
+    yellow: "#D4AC0D",
+    yellowForeground: "#FFFFFF",
+    yellowBg: "#FEFDE8",
+
+    blue: "#1A5276",
+    blueBg: "#EBF5FB",
+
+    destructive: "#C0392B",
     destructiveForeground: "#FFFFFF",
 
-    border: "#E8D5BE",
-    input: "#E8D5BE",
-
-    success: "#16A34A",
-    successForeground: "#FFFFFF",
-
-    warning: "#D97706",
-    warningForeground: "#FFFFFF",
+    border: "#EDD5C2",
+    input: "#EDD5C2",
   },
-
-  radius: 12,
+  radius: 14,
 };
 
 export default colors;

@@ -1,263 +1,411 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Notifications from "expo-notifications";
+import { Platform } from "react-native";
 import React, { createContext, useContext, useEffect, useState } from "react";
 
-export interface Service {
-  id: string;
-  name: string;
-  duration: number;
-  price: number;
-  category: string;
-}
+export type UserRole = "customer" | "owner" | null;
 
-export interface Customer {
+export interface Saloon {
   id: string;
+  ownerDeviceId: string;
   name: string;
+  ownerName: string;
   phone: string;
-  email: string;
-  notes: string;
-  createdAt: string;
-  totalVisits: number;
+  address: string;
+  city: string;
+  description: string;
+  services: string[];
+  openTime: string;
+  closeTime: string;
+  isOpen: boolean;
+  slotDuration: number;
+  registeredAt: string;
 }
 
-export interface Appointment {
+export interface TimeSlot {
   id: string;
-  customerId: string;
-  customerName: string;
-  serviceId: string;
-  serviceName: string;
+  saloonId: string;
   date: string;
   time: string;
-  duration: number;
-  price: number;
-  status: "scheduled" | "completed" | "cancelled" | "no-show";
-  notes: string;
+  isBlocked: boolean;
+}
+
+export interface Booking {
+  id: string;
+  saloonId: string;
+  saloonName: string;
+  customerName: string;
+  customerPhone: string;
+  slotId: string;
+  date: string;
+  time: string;
+  service: string;
+  status: "pending" | "accepted" | "rejected" | "completed" | "cancelled";
+  createdAt: string;
+  deviceId: string;
 }
 
 interface AppContextType {
-  customers: Customer[];
-  appointments: Appointment[];
-  services: Service[];
-  addCustomer: (customer: Omit<Customer, "id" | "createdAt" | "totalVisits">) => void;
-  updateCustomer: (id: string, updates: Partial<Customer>) => void;
-  deleteCustomer: (id: string) => void;
-  addAppointment: (appointment: Omit<Appointment, "id">) => void;
-  updateAppointment: (id: string, updates: Partial<Appointment>) => void;
-  deleteAppointment: (id: string) => void;
-  addService: (service: Omit<Service, "id">) => void;
-  updateService: (id: string, updates: Partial<Service>) => void;
-  deleteService: (id: string) => void;
+  role: UserRole;
+  setRole: (role: UserRole) => void;
+  deviceId: string;
+  saloons: Saloon[];
+  slots: TimeSlot[];
+  bookings: Booking[];
+  mySaloon: Saloon | null;
+  registerSaloon: (data: Omit<Saloon, "id" | "ownerDeviceId" | "registeredAt" | "isOpen">) => void;
+  updateSaloon: (updates: Partial<Saloon>) => void;
+  generateSlots: (saloonId: string, openTime: string, closeTime: string, duration: number) => void;
+  toggleSlotBlock: (slotId: string) => void;
+  createBooking: (booking: Omit<Booking, "id" | "createdAt" | "status">) => Promise<void>;
+  respondToBooking: (bookingId: string, response: "accepted" | "rejected") => Promise<void>;
+  cancelBooking: (bookingId: string) => void;
+  getSaloonSlots: (saloonId: string, date: string) => TimeSlot[];
+  getBookingsForSlot: (slotId: string) => Booking[];
+  isSlotBooked: (slotId: string) => boolean;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
 
-const DEFAULT_SERVICES: Service[] = [
-  { id: "s1", name: "Haircut", duration: 30, price: 25, category: "Hair" },
-  { id: "s2", name: "Shave", duration: 20, price: 15, category: "Grooming" },
-  { id: "s3", name: "Haircut & Shave", duration: 45, price: 35, category: "Hair" },
-  { id: "s4", name: "Hair Color", duration: 90, price: 60, category: "Hair" },
-  { id: "s5", name: "Beard Trim", duration: 15, price: 10, category: "Grooming" },
-  { id: "s6", name: "Hot Towel Treatment", duration: 20, price: 18, category: "Grooming" },
+function genId() {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+}
+
+function getDateStr(offsetDays: number) {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return d.toISOString().split("T")[0];
+}
+
+function generateSlotsForDay(
+  saloonId: string,
+  date: string,
+  openTime: string,
+  closeTime: string,
+  duration: number
+): TimeSlot[] {
+  const slots: TimeSlot[] = [];
+  const [openH, openM] = openTime.split(":").map(Number);
+  const [closeH, closeM] = closeTime.split(":").map(Number);
+  let currentMinutes = openH * 60 + openM;
+  const closeMinutes = closeH * 60 + closeM;
+
+  while (currentMinutes + duration <= closeMinutes) {
+    const h = Math.floor(currentMinutes / 60);
+    const m = currentMinutes % 60;
+    const time = `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+    slots.push({
+      id: `${saloonId}-${date}-${time}`,
+      saloonId,
+      date,
+      time,
+      isBlocked: false,
+    });
+    currentMinutes += duration;
+  }
+  return slots;
+}
+
+const SAMPLE_SALOONS: Saloon[] = [
+  {
+    id: "sample-1",
+    ownerDeviceId: "sample",
+    name: "Sharma Hair Studio",
+    ownerName: "Ramesh Sharma",
+    phone: "98765-43210",
+    address: "12, Main Bazaar Road, Chandni Chowk",
+    city: "Delhi",
+    description: "Premium haircuts and grooming for men. Expert barbers with 15+ years experience. Traditional shaves available.",
+    services: ["Haircut", "Shave", "Hair Color", "Beard Trim", "Head Massage"],
+    openTime: "09:00",
+    closeTime: "21:00",
+    isOpen: true,
+    slotDuration: 30,
+    registeredAt: "2024-01-01",
+  },
+  {
+    id: "sample-2",
+    ownerDeviceId: "sample",
+    name: "Royal Barbers",
+    ownerName: "Vijay Kumar",
+    phone: "87654-32109",
+    address: "45, Station Road, Dadar",
+    city: "Mumbai",
+    description: "Family salon with all hair and beauty services. AC facility, clean environment.",
+    services: ["Haircut", "Facial", "Threading", "Waxing", "Hair Spa"],
+    openTime: "10:00",
+    closeTime: "20:00",
+    isOpen: true,
+    slotDuration: 30,
+    registeredAt: "2024-01-05",
+  },
+  {
+    id: "sample-3",
+    ownerDeviceId: "sample",
+    name: "Balaji Hair Salon",
+    ownerName: "Suresh Balaji",
+    phone: "76543-21098",
+    address: "7, Temple Street, T. Nagar",
+    city: "Chennai",
+    description: "Traditional and modern haircuts. Specialising in South Indian hair care and treatments.",
+    services: ["Haircut", "Head Massage", "Hair Coloring", "Shave", "Facial"],
+    openTime: "08:00",
+    closeTime: "19:00",
+    isOpen: false,
+    slotDuration: 30,
+    registeredAt: "2024-01-10",
+  },
+  {
+    id: "sample-4",
+    ownerDeviceId: "sample",
+    name: "Gupta Gents Parlour",
+    ownerName: "Anil Gupta",
+    phone: "65432-10987",
+    address: "88, MG Road, Koramangala",
+    city: "Bangalore",
+    description: "Affordable gents salon. Walk-ins welcome. Experienced staff.",
+    services: ["Haircut", "Shave", "Hair Wash", "Beard Styling"],
+    openTime: "09:30",
+    closeTime: "20:30",
+    isOpen: true,
+    slotDuration: 30,
+    registeredAt: "2024-01-15",
+  },
 ];
 
-const DEFAULT_CUSTOMERS: Customer[] = [
-  {
-    id: "c1",
-    name: "James Mitchell",
-    phone: "555-0101",
-    email: "james@example.com",
-    notes: "Prefers short sides",
-    createdAt: "2024-01-15",
-    totalVisits: 8,
-  },
-  {
-    id: "c2",
-    name: "Robert Chen",
-    phone: "555-0102",
-    email: "robert@example.com",
-    notes: "Allergic to certain dyes",
-    createdAt: "2024-02-01",
-    totalVisits: 3,
-  },
-  {
-    id: "c3",
-    name: "Marcus Thompson",
-    phone: "555-0103",
-    email: "marcus@example.com",
-    notes: "",
-    createdAt: "2024-03-10",
-    totalVisits: 5,
-  },
-];
+async function setupNotifications() {
+  if (Platform.OS === "web") return;
+  try {
+    const { status } = await Notifications.requestPermissionsAsync();
+    if (status === "granted") {
+      Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldShowAlert: true,
+          shouldPlaySound: true,
+          shouldSetBadge: true,
+          shouldShowBanner: true,
+          shouldShowList: true,
+        }),
+      });
+    }
+  } catch {}
+}
 
-const today = new Date().toISOString().split("T")[0];
-
-const DEFAULT_APPOINTMENTS: Appointment[] = [
-  {
-    id: "a1",
-    customerId: "c1",
-    customerName: "James Mitchell",
-    serviceId: "s1",
-    serviceName: "Haircut",
-    date: today,
-    time: "09:00",
-    duration: 30,
-    price: 25,
-    status: "scheduled",
-    notes: "",
-  },
-  {
-    id: "a2",
-    customerId: "c2",
-    customerName: "Robert Chen",
-    serviceId: "s3",
-    serviceName: "Haircut & Shave",
-    date: today,
-    time: "10:30",
-    duration: 45,
-    price: 35,
-    status: "scheduled",
-    notes: "Wants a fade",
-  },
-  {
-    id: "a3",
-    customerId: "c3",
-    customerName: "Marcus Thompson",
-    serviceId: "s5",
-    serviceName: "Beard Trim",
-    date: today,
-    time: "14:00",
-    duration: 15,
-    price: 10,
-    status: "completed",
-    notes: "",
-  },
-];
-
-function generateId() {
-  return Date.now().toString() + Math.random().toString(36).substr(2, 9);
+async function scheduleLocalNotification(title: string, body: string, seconds = 1) {
+  if (Platform.OS === "web") return;
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: { title, body, sound: true },
+      trigger: seconds <= 1 ? null : { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds, repeats: false },
+    });
+  } catch {}
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
+  const [role, setRoleState] = useState<UserRole>(null);
+  const [deviceId, setDeviceId] = useState("");
+  const [saloons, setSaloons] = useState<Saloon[]>([]);
+  const [slots, setSlots] = useState<TimeSlot[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
 
   useEffect(() => {
-    loadData();
+    init();
+    setupNotifications();
   }, []);
 
-  const loadData = async () => {
+  const init = async () => {
     try {
-      const [savedCustomers, savedAppointments, savedServices] = await Promise.all([
-        AsyncStorage.getItem("customers"),
-        AsyncStorage.getItem("appointments"),
-        AsyncStorage.getItem("services"),
-      ]);
+      let id = await AsyncStorage.getItem("deviceId");
+      if (!id) {
+        id = genId();
+        await AsyncStorage.setItem("deviceId", id);
+      }
+      setDeviceId(id);
 
-      setCustomers(savedCustomers ? JSON.parse(savedCustomers) : DEFAULT_CUSTOMERS);
-      setAppointments(savedAppointments ? JSON.parse(savedAppointments) : DEFAULT_APPOINTMENTS);
-      setServices(savedServices ? JSON.parse(savedServices) : DEFAULT_SERVICES);
-    } catch {
-      setCustomers(DEFAULT_CUSTOMERS);
-      setAppointments(DEFAULT_APPOINTMENTS);
-      setServices(DEFAULT_SERVICES);
+      const savedRole = await AsyncStorage.getItem("userRole");
+      if (savedRole === "customer" || savedRole === "owner") setRoleState(savedRole);
+
+      const savedSaloons = await AsyncStorage.getItem("saloons");
+      const savedSlots = await AsyncStorage.getItem("slots");
+      const savedBookings = await AsyncStorage.getItem("bookings");
+
+      const saloonsData = savedSaloons ? JSON.parse(savedSaloons) : SAMPLE_SALOONS;
+      const slotsData = savedSlots ? JSON.parse(savedSlots) : [];
+      const bookingsData = savedBookings ? JSON.parse(savedBookings) : [];
+
+      setSaloons(saloonsData);
+      setSlots(slotsData);
+      setBookings(bookingsData);
+
+      // Ensure sample saloons always have slots
+      if (!savedSlots || JSON.parse(savedSlots).length === 0) {
+        const generatedSlots: TimeSlot[] = [];
+        for (const s of SAMPLE_SALOONS) {
+          for (let i = 0; i < 7; i++) {
+            generatedSlots.push(...generateSlotsForDay(s.id, getDateStr(i), s.openTime, s.closeTime, s.slotDuration));
+          }
+        }
+        setSlots(generatedSlots);
+        await AsyncStorage.setItem("slots", JSON.stringify(generatedSlots));
+      }
+    } catch {}
+  };
+
+  const setRole = async (r: UserRole) => {
+    setRoleState(r);
+    if (r) await AsyncStorage.setItem("userRole", r);
+    else await AsyncStorage.removeItem("userRole");
+  };
+
+  const saveSaloons = async (data: Saloon[]) => {
+    setSaloons(data);
+    await AsyncStorage.setItem("saloons", JSON.stringify(data));
+  };
+
+  const saveSlots = async (data: TimeSlot[]) => {
+    setSlots(data);
+    await AsyncStorage.setItem("slots", JSON.stringify(data));
+  };
+
+  const saveBookings = async (data: Booking[]) => {
+    setBookings(data);
+    await AsyncStorage.setItem("bookings", JSON.stringify(data));
+  };
+
+  const mySaloon = saloons.find((s) => s.ownerDeviceId === deviceId) ?? null;
+
+  const registerSaloon = async (data: Omit<Saloon, "id" | "ownerDeviceId" | "registeredAt" | "isOpen">) => {
+    const existing = saloons.find((s) => s.ownerDeviceId === deviceId);
+    if (existing) {
+      const updated = saloons.map((s) =>
+        s.ownerDeviceId === deviceId ? { ...s, ...data } : s
+      );
+      await saveSaloons(updated);
+    } else {
+      const newSaloon: Saloon = {
+        ...data,
+        id: genId(),
+        ownerDeviceId: deviceId,
+        isOpen: true,
+        registeredAt: new Date().toISOString().split("T")[0],
+      };
+      const updated = [...saloons, newSaloon];
+      await saveSaloons(updated);
+      // Auto-generate slots for next 7 days
+      const newSlots: TimeSlot[] = [];
+      for (let i = 0; i < 7; i++) {
+        newSlots.push(...generateSlotsForDay(newSaloon.id, getDateStr(i), data.openTime, data.closeTime, data.slotDuration));
+      }
+      await saveSlots([...slots, ...newSlots]);
     }
   };
 
-  const saveCustomers = async (data: Customer[]) => {
-    await AsyncStorage.setItem("customers", JSON.stringify(data));
+  const updateSaloon = async (updates: Partial<Saloon>) => {
+    const updated = saloons.map((s) =>
+      s.ownerDeviceId === deviceId ? { ...s, ...updates } : s
+    );
+    await saveSaloons(updated);
   };
 
-  const saveAppointments = async (data: Appointment[]) => {
-    await AsyncStorage.setItem("appointments", JSON.stringify(data));
+  const generateSlots = async (saloonId: string, openTime: string, closeTime: string, duration: number) => {
+    const filtered = slots.filter((s) => s.saloonId !== saloonId);
+    const newSlots: TimeSlot[] = [];
+    for (let i = 0; i < 7; i++) {
+      newSlots.push(...generateSlotsForDay(saloonId, getDateStr(i), openTime, closeTime, duration));
+    }
+    await saveSlots([...filtered, ...newSlots]);
   };
 
-  const saveServices = async (data: Service[]) => {
-    await AsyncStorage.setItem("services", JSON.stringify(data));
+  const toggleSlotBlock = async (slotId: string) => {
+    const updated = slots.map((s) => s.id === slotId ? { ...s, isBlocked: !s.isBlocked } : s);
+    await saveSlots(updated);
   };
 
-  const addCustomer = (customer: Omit<Customer, "id" | "createdAt" | "totalVisits">) => {
-    const newCustomer: Customer = {
-      ...customer,
-      id: generateId(),
-      createdAt: new Date().toISOString().split("T")[0],
-      totalVisits: 0,
+  const createBooking = async (booking: Omit<Booking, "id" | "createdAt" | "status">) => {
+    const newBooking: Booking = {
+      ...booking,
+      id: genId(),
+      status: "pending",
+      createdAt: new Date().toISOString(),
     };
-    const updated = [...customers, newCustomer];
-    setCustomers(updated);
-    saveCustomers(updated);
+    const updated = [...bookings, newBooking];
+    await saveBookings(updated);
+
+    // Notify owner (local notification simulating push to owner)
+    await scheduleLocalNotification(
+      "New Booking Request / नई बुकिंग अनुरोध",
+      `${booking.customerName} has requested a slot at ${booking.time} on ${booking.date} (${booking.service})`
+    );
   };
 
-  const updateCustomer = (id: string, updates: Partial<Customer>) => {
-    const updated = customers.map((c) => (c.id === id ? { ...c, ...updates } : c));
-    setCustomers(updated);
-    saveCustomers(updated);
-  };
+  const respondToBooking = async (bookingId: string, response: "accepted" | "rejected") => {
+    const booking = bookings.find((b) => b.id === bookingId);
+    if (!booking) return;
 
-  const deleteCustomer = (id: string) => {
-    const updated = customers.filter((c) => c.id !== id);
-    setCustomers(updated);
-    saveCustomers(updated);
-  };
+    let updated = bookings.map((b) => {
+      if (b.id === bookingId) return { ...b, status: response };
+      // If accepted, reject other pending bookings for same slot
+      if (response === "accepted" && b.slotId === booking.slotId && b.status === "pending" && b.id !== bookingId) {
+        return { ...b, status: "rejected" as const };
+      }
+      return b;
+    });
+    await saveBookings(updated);
 
-  const addAppointment = (appointment: Omit<Appointment, "id">) => {
-    const newAppointment: Appointment = { ...appointment, id: generateId() };
-    const updated = [...appointments, newAppointment];
-    setAppointments(updated);
-    saveAppointments(updated);
+    if (response === "accepted") {
+      // Notify customer of acceptance
+      await scheduleLocalNotification(
+        "Booking Confirmed! / बुकिंग पक्की! 🎉",
+        `Your appointment at ${booking.saloonName} is confirmed for ${booking.date} at ${booking.time}`
+      );
 
-    const cust = customers.find((c) => c.id === appointment.customerId);
-    if (cust) {
-      updateCustomer(cust.id, { totalVisits: cust.totalVisits + 1 });
+      // Schedule 10-minute reminder
+      const apptDate = new Date(`${booking.date}T${booking.time}:00`);
+      const reminderTime = new Date(apptDate.getTime() - 10 * 60 * 1000);
+      const secondsUntilReminder = Math.max(1, (reminderTime.getTime() - Date.now()) / 1000);
+
+      if (secondsUntilReminder > 60) {
+        await scheduleLocalNotification(
+          "Appointment in 10 min! / 10 मिनट में अपॉइंटमेंट!",
+          `Your appointment at ${booking.saloonName} is in 10 minutes`,
+          secondsUntilReminder
+        );
+      }
+    } else {
+      await scheduleLocalNotification(
+        "Booking Update / बुकिंग अपडेट",
+        `Your slot request at ${booking.saloonName} was not accepted. Please choose another slot.`
+      );
     }
   };
 
-  const updateAppointment = (id: string, updates: Partial<Appointment>) => {
-    const updated = appointments.map((a) => (a.id === id ? { ...a, ...updates } : a));
-    setAppointments(updated);
-    saveAppointments(updated);
+  const cancelBooking = async (bookingId: string) => {
+    const updated = bookings.map((b) => b.id === bookingId ? { ...b, status: "cancelled" as const } : b);
+    await saveBookings(updated);
   };
 
-  const deleteAppointment = (id: string) => {
-    const updated = appointments.filter((a) => a.id !== id);
-    setAppointments(updated);
-    saveAppointments(updated);
+  const getSaloonSlots = (saloonId: string, date: string): TimeSlot[] => {
+    return slots
+      .filter((s) => s.saloonId === saloonId && s.date === date)
+      .sort((a, b) => a.time.localeCompare(b.time));
   };
 
-  const addService = (service: Omit<Service, "id">) => {
-    const newService: Service = { ...service, id: generateId() };
-    const updated = [...services, newService];
-    setServices(updated);
-    saveServices(updated);
+  const getBookingsForSlot = (slotId: string): Booking[] => {
+    return bookings.filter((b) => b.slotId === slotId);
   };
 
-  const updateService = (id: string, updates: Partial<Service>) => {
-    const updated = services.map((s) => (s.id === id ? { ...s, ...updates } : s));
-    setServices(updated);
-    saveServices(updated);
-  };
-
-  const deleteService = (id: string) => {
-    const updated = services.filter((s) => s.id !== id);
-    setServices(updated);
-    saveServices(updated);
+  const isSlotBooked = (slotId: string): boolean => {
+    return bookings.some((b) => b.slotId === slotId && b.status === "accepted");
   };
 
   return (
     <AppContext.Provider
       value={{
-        customers,
-        appointments,
-        services,
-        addCustomer,
-        updateCustomer,
-        deleteCustomer,
-        addAppointment,
-        updateAppointment,
-        deleteAppointment,
-        addService,
-        updateService,
-        deleteService,
+        role, setRole, deviceId,
+        saloons, slots, bookings, mySaloon,
+        registerSaloon, updateSaloon, generateSlots,
+        toggleSlotBlock, createBooking, respondToBooking, cancelBooking,
+        getSaloonSlots, getBookingsForSlot, isSlotBooked,
       }}
     >
       {children}
@@ -266,7 +414,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useApp() {
-  const context = useContext(AppContext);
-  if (!context) throw new Error("useApp must be used within AppProvider");
-  return context;
+  const ctx = useContext(AppContext);
+  if (!ctx) throw new Error("useApp must be used within AppProvider");
+  return ctx;
 }
