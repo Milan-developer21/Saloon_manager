@@ -16,17 +16,26 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 ### MySaloon (mobile app)
 - **Path**: `artifacts/saloon/`
 - **Type**: Expo (React Native)
-- **Preview**: `/` (root path)
+- **Preview**: `/saloon` path via Expo Dev Server
 - **Description**: Two-sided saloon booking app for Indian local saloon shops
-- **Storage**: AsyncStorage (no backend required)
+- **Backend**: REST API at `/api` (port 8080, JWT auth, PostgreSQL)
 - **Languages**: English + Hindi (हिंदी)
 
 #### Architecture
-- **Two roles**: Customer and Saloon Owner (selected at launch)
-- **Customer side**: Browse saloons by city, see open/closed status, book available slots, view booking status
-- **Owner side**: Register shop, manage time slots, accept/reject booking requests, toggle open/closed
-- **Booking flow**: Customer requests slot (pending) → Owner gets notification → Owner accepts/rejects → If accepted, 10-min reminder scheduled for customer
-- **No pricing** shown on customer side
+- **Two roles**: Customer and Saloon Owner (register/login at launch)
+- **Auth**: JWT tokens stored in AsyncStorage; `AuthContext` manages session
+- **Customer side**: Browse saloons, see open/closed status, book available slots (no pricing shown), view booking status, cancel pending bookings
+- **Owner side**: Register shop, manage time slots, accept/reject booking requests, toggle open/closed, logout
+- **Booking flow**: Customer requests slot (pending) → Owner sees in dashboard → Owner accepts/rejects → Customer sees updated status
+- **API client**: `lib/api.ts` uses `EXPO_PUBLIC_DOMAIN` for base URL
+
+#### Key files
+- `artifacts/saloon/lib/api.ts` — API client (fetch wrapper)
+- `artifacts/saloon/context/AuthContext.tsx` — login/register/logout + JWT storage
+- `artifacts/saloon/context/AppContext.tsx` — saloons, bookings, slots via API
+- `artifacts/saloon/app/auth/login.tsx` — login screen (role-aware)
+- `artifacts/saloon/app/auth/register.tsx` — register screen (role-aware)
+- `artifacts/saloon/app/index.tsx` — role selector (auth-aware, auto-redirects if logged in)
 
 #### Key Files
 - `app/_layout.tsx` — Root layout with LanguageProvider + AppProvider

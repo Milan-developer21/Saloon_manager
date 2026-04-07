@@ -1,17 +1,19 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useApp } from "@/context/AppContext";
+import { useApp, type SlotWithStatus } from "@/context/AppContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { useColors } from "@/hooks/useColors";
 
@@ -40,19 +42,33 @@ function formatDateLabel(dateStr: string) {
 export default function SlotsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { mySaloon, getSaloonSlots, toggleSlotBlock, generateSlots, isSlotBooked, getBookingsForSlot } = useApp();
+  const { mySaloon, getSaloonSlots, toggleSlotBlock, generateSlots } = useApp();
   const { t } = useLanguage();
 
   const [selectedDate, setSelectedDate] = useState(getDateStr(0));
+  const [slots, setSlots] = useState<SlotWithStatus[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const dateOptions = Array.from({ length: 7 }, (_, i) => getDateStr(i));
-  const slots = useMemo(() => {
-    if (!mySaloon) return [];
-    return getSaloonSlots(mySaloon.id, selectedDate);
-  }, [mySaloon, selectedDate, getSaloonSlots]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+
+  const loadSlots = useCallback(async () => {
+    if (!mySaloon) return;
+    try {
+      const data = await getSaloonSlots(mySaloon.id, selectedDate);
+      setSlots(data);
+    } catch {}
+  }, [mySaloon, selectedDate, getSaloonSlots]);
+
+  useEffect(() => {
+    setLoading(true);
+    loadSlots().finally(() => setLoading(false));
+  }, [selectedDate, mySaloon?.id]);
+
+  const handleRefresh = async () => { setRefreshing(true); await loadSlots(); setRefreshing(false); };
 
   const handleGenerate = () => {
     if (!mySaloon) return;
@@ -60,20 +76,28 @@ export default function SlotsScreen() {
       { text: t("cancel"), style: "cancel" },
       {
         text: t("ok"),
-        onPress: () => {
-          generateSlots(mySaloon.id, mySaloon.openTime, mySaloon.closeTime, mySaloon.slotDuration);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        onPress: async () => {
+          try {
+            await generateSlots(mySaloon.id);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            loadSlots();
+          } catch {}
         },
       },
     ]);
   };
 
-  const getSlotStatus = (slot: any) => {
-    if (isSlotBooked(slot.id)) return "booked";
-    const bookingsForSlot = getBookingsForSlot(slot.id);
-    if (bookingsForSlot.some((b: any) => b.status === "pending")) return "pending";
-    if (slot.isBlocked) return "blocked";
-    return "available";
+  const handleToggleBlock = async (slot: SlotWithStatus) => {
+    if (!mySaloon) return;
+    if (slot.status !== "available" && slot.status !== "blocked") return;
+    Haptics.selectionAsync();
+    const newStatus = slot.status === "blocked" ? "available" : "blocked";
+    setSlots((prev) => prev.map((s) => s.id === slot.id ? { ...s, status: newStatus, isBlocked: !s.isBlocked } : s));
+    try {
+      await toggleSlotBlock(mySaloon.id, slot.id);
+    } catch {
+      loadSlots();
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -99,10 +123,7 @@ export default function SlotsScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPad + 12 }]}>
         <Text style={[styles.title, { color: colors.foreground }]}>{t("manageSlots")}</Text>
-        <TouchableOpacity
-          style={[styles.genBtn, { backgroundColor: colors.accent }]}
-          onPress={handleGenerate}
-        >
+        <TouchableOpacity style={[styles.genBtn, { backgroundColor: colors.accent }]} onPress={handleGenerate}>
           <Feather name="refresh-cw" size={14} color="#FFF" />
           <Text style={styles.genBtnText}>{t("generateSlots")}</Text>
         </TouchableOpacity>
@@ -126,15 +147,17 @@ export default function SlotsScreen() {
         style={styles.list}
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: bottomPad + 100 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
       >
-        {slots.length === 0 ? (
+        {loading ? (
+          <View style={styles.empty}>
+            <ActivityIndicator color={colors.accent} />
+          </View>
+        ) : slots.length === 0 ? (
           <View style={styles.empty}>
             <Feather name="calendar" size={36} color={colors.mutedForeground} />
             <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>{t("noSlotsAvailable")}</Text>
-            <TouchableOpacity
-              style={[styles.genBtnLarge, { backgroundColor: colors.accent }]}
-              onPress={handleGenerate}
-            >
+            <TouchableOpacity style={[styles.genBtnLarge, { backgroundColor: colors.accent }]} onPress={handleGenerate}>
               <Text style={styles.genBtnText}>{t("generateSlots")}</Text>
             </TouchableOpacity>
           </View>
@@ -156,26 +179,19 @@ export default function SlotsScreen() {
 
             <View style={styles.slotGrid}>
               {slots.map((slot) => {
-                const status = getSlotStatus(slot);
-                const sc = getStatusColor(status);
-                const canToggle = status === "available" || status === "blocked";
-
+                const sc = getStatusColor(slot.status);
+                const canToggle = slot.status === "available" || slot.status === "blocked";
                 return (
                   <TouchableOpacity
                     key={slot.id}
                     style={[styles.slotBtn, { backgroundColor: sc.bg, borderColor: sc.text }]}
-                    onPress={() => {
-                      if (canToggle) {
-                        Haptics.selectionAsync();
-                        toggleSlotBlock(slot.id);
-                      }
-                    }}
+                    onPress={() => handleToggleBlock(slot)}
                     activeOpacity={canToggle ? 0.8 : 1}
                   >
                     <Text style={[styles.slotTime, { color: sc.text }]}>{formatTime(slot.time)}</Text>
-                    {status === "blocked" && <Feather name="lock" size={10} color={sc.text} />}
-                    {status === "booked" && <Feather name="check-circle" size={10} color={sc.text} />}
-                    {status === "pending" && <Feather name="clock" size={10} color={sc.text} />}
+                    {slot.status === "blocked" && <Feather name="lock" size={10} color={sc.text} />}
+                    {slot.status === "booked" && <Feather name="check-circle" size={10} color={sc.text} />}
+                    {slot.status === "pending" && <Feather name="clock" size={10} color={sc.text} />}
                   </TouchableOpacity>
                 );
               })}
@@ -202,7 +218,7 @@ const styles = StyleSheet.create({
   dateBtn: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, borderWidth: 1 },
   dateBtnText: { fontSize: 13, fontWeight: "700" },
   list: { flex: 1 },
-  legend: { flexDirection: "row", gap: 12, marginBottom: 16, flexWrap: "wrap" },
+  legend: { flexDirection: "row", gap: 12, marginBottom: 16, marginTop: 4, flexWrap: "wrap" },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   legendDot: { width: 10, height: 10, borderRadius: 5 },
   legendText: { fontSize: 11 },

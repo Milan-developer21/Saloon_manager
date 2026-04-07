@@ -1,9 +1,11 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import React, { useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Switch,
@@ -13,7 +15,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BookingStatusCard } from "@/components/BookingStatusCard";
-import { useApp } from "@/context/AppContext";
+import { useApp, type Booking } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { useColors } from "@/hooks/useColors";
 
@@ -21,23 +24,67 @@ export default function OwnerDashboard() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { mySaloon, bookings, updateSaloon, setRole, respondToBooking } = useApp();
+  const { mySaloon, loadMySaloon, getSaloonBookings, respondToBooking, toggleSaloonOpen } = useApp();
+  const { logout } = useAuth();
   const { t, language, setLanguage } = useLanguage();
+
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loadingBookings, setLoadingBookings] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [toggling, setToggling] = useState(false);
 
   const today = new Date().toISOString().split("T")[0];
 
-  const myBookings = useMemo(() => {
-    if (!mySaloon) return [];
-    return bookings.filter((b) => b.saloonId === mySaloon.id);
-  }, [bookings, mySaloon]);
+  const loadBookings = useCallback(async () => {
+    if (!mySaloon) return;
+    try {
+      const data = await getSaloonBookings();
+      setBookings(data);
+    } catch {}
+  }, [mySaloon, getSaloonBookings]);
 
-  const pending = myBookings.filter((b) => b.status === "pending");
-  const todayAccepted = myBookings.filter((b) => b.date === today && b.status === "accepted");
-  const totalCompleted = myBookings.filter((b) => b.status === "completed").length;
-  const totalAccepted = myBookings.filter((b) => b.status === "accepted").length;
+  useEffect(() => {
+    loadMySaloon();
+  }, []);
+
+  useEffect(() => {
+    if (mySaloon) {
+      setLoadingBookings(true);
+      loadBookings().finally(() => setLoadingBookings(false));
+    }
+  }, [mySaloon?.id]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadMySaloon();
+    await loadBookings();
+    setRefreshing(false);
+  };
+
+  const pending = useMemo(() => bookings.filter((b) => b.status === "pending"), [bookings]);
+  const todayAccepted = useMemo(() => bookings.filter((b) => b.slot?.date === today && b.status === "accepted"), [bookings, today]);
+  const totalAccepted = useMemo(() => bookings.filter((b) => b.status === "accepted").length, [bookings]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+
+  const handleRespond = async (bookingId: number, status: "accepted" | "rejected") => {
+    try {
+      await respondToBooking(bookingId, status);
+      setBookings((prev) => prev.map((b) => b.id === bookingId ? { ...b, status } : b));
+    } catch {}
+  };
+
+  const handleToggleOpen = async () => {
+    if (!mySaloon || toggling) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setToggling(true);
+    try {
+      await toggleSaloonOpen(mySaloon.id);
+    } finally {
+      setToggling(false);
+    }
+  };
 
   if (!mySaloon) {
     return (
@@ -53,8 +100,8 @@ export default function OwnerDashboard() {
           >
             <Text style={styles.regBtnText}>{t("registerNow")}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.switchRoleBtn} onPress={() => { setRole(null); router.replace("/"); }}>
-            <Text style={[styles.switchRoleText, { color: colors.mutedForeground }]}>{t("switchRole")}</Text>
+          <TouchableOpacity style={styles.switchRoleBtn} onPress={() => { logout(); router.replace("/"); }}>
+            <Text style={[styles.switchRoleText, { color: colors.mutedForeground }]}>{t("logout")}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -66,6 +113,7 @@ export default function OwnerDashboard() {
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={[styles.content, { paddingTop: topPad + 16, paddingBottom: bottomPad + 80 }]}
       showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
     >
       <View style={styles.topRow}>
         <View>
@@ -87,8 +135,8 @@ export default function OwnerDashboard() {
               <Text style={{ color: language === "hi" ? "#FFF" : colors.foreground, fontWeight: "700", fontSize: 11 }}>हि</Text>
             </TouchableOpacity>
           </View>
-          <TouchableOpacity onPress={() => { setRole(null); router.replace("/"); }}>
-            <Feather name="repeat" size={18} color={colors.mutedForeground} />
+          <TouchableOpacity onPress={() => { logout(); router.replace("/"); }}>
+            <Feather name="log-out" size={18} color={colors.mutedForeground} />
           </TouchableOpacity>
         </View>
       </View>
@@ -102,10 +150,8 @@ export default function OwnerDashboard() {
         </View>
         <Switch
           value={mySaloon.isOpen}
-          onValueChange={(val) => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            updateSaloon({ isOpen: val });
-          }}
+          onValueChange={handleToggleOpen}
+          disabled={toggling}
           trackColor={{ false: colors.border, true: colors.green }}
           thumbColor="#FFF"
         />
@@ -124,45 +170,51 @@ export default function OwnerDashboard() {
         ))}
       </View>
 
-      {pending.length > 0 && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{t("pendingRequests")}</Text>
-            <View style={[styles.badge, { backgroundColor: colors.yellowBg }]}>
-              <Text style={[styles.badgeText, { color: colors.yellow }]}>{pending.length}</Text>
+      {loadingBookings ? (
+        <ActivityIndicator color={colors.accent} style={{ marginTop: 20 }} />
+      ) : (
+        <>
+          {pending.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{t("pendingRequests")}</Text>
+                <View style={[styles.badge, { backgroundColor: colors.yellowBg }]}>
+                  <Text style={[styles.badgeText, { color: colors.yellow }]}>{pending.length}</Text>
+                </View>
+              </View>
+              {pending.slice(0, 3).map((b) => (
+                <BookingStatusCard
+                  key={b.id}
+                  booking={b}
+                  showActions
+                  onAccept={() => handleRespond(b.id, "accepted")}
+                  onReject={() => handleRespond(b.id, "rejected")}
+                />
+              ))}
+              {pending.length > 3 && (
+                <TouchableOpacity onPress={() => router.push("/(owner)/requests")}>
+                  <Text style={[styles.seeAll, { color: colors.accent }]}>See all {pending.length} requests</Text>
+                </TouchableOpacity>
+              )}
             </View>
-          </View>
-          {pending.slice(0, 3).map((b) => (
-            <BookingStatusCard
-              key={b.id}
-              booking={b}
-              showActions
-              onAccept={() => respondToBooking(b.id, "accepted")}
-              onReject={() => respondToBooking(b.id, "rejected")}
-            />
-          ))}
-          {pending.length > 3 && (
-            <TouchableOpacity onPress={() => router.push("/(owner)/requests")}>
-              <Text style={[styles.seeAll, { color: colors.accent }]}>See all {pending.length} requests</Text>
-            </TouchableOpacity>
           )}
-        </View>
-      )}
 
-      {todayAccepted.length > 0 && (
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{t("todayBookings")}</Text>
-          {todayAccepted.map((b) => (
-            <BookingStatusCard key={b.id} booking={b} showActions={false} />
-          ))}
-        </View>
-      )}
+          {todayAccepted.length > 0 && (
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{t("todayBookings")}</Text>
+              {todayAccepted.map((b) => (
+                <BookingStatusCard key={b.id} booking={b} showActions={false} />
+              ))}
+            </View>
+          )}
 
-      {pending.length === 0 && todayAccepted.length === 0 && (
-        <View style={styles.emptyState}>
-          <Feather name="inbox" size={40} color={colors.mutedForeground} />
-          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>{t("noTodayBookings")}</Text>
-        </View>
+          {pending.length === 0 && todayAccepted.length === 0 && (
+            <View style={styles.emptyState}>
+              <Feather name="inbox" size={40} color={colors.mutedForeground} />
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>{t("noTodayBookings")}</Text>
+            </View>
+          )}
+        </>
       )}
     </ScrollView>
   );
@@ -177,15 +229,7 @@ const styles = StyleSheet.create({
   topRight: { flexDirection: "row", alignItems: "center", gap: 10 },
   langRow: { flexDirection: "row", gap: 6 },
   langBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16 },
-  openCard: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderRadius: 18,
-    borderWidth: 1.5,
-    padding: 18,
-    marginBottom: 20,
-  },
+  openCard: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderRadius: 18, borderWidth: 1.5, padding: 18, marginBottom: 20 },
   openLabel: { fontSize: 15, fontWeight: "700" },
   openSub: { fontSize: 12, marginTop: 4 },
   statsRow: { flexDirection: "row", gap: 10, marginBottom: 24 },

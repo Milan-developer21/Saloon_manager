@@ -12,6 +12,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { AuthProvider } from "@/context/AuthContext";
 import { AppProvider } from "@/context/AppContext";
 import { LanguageProvider } from "@/context/LanguageContext";
 
@@ -21,6 +22,7 @@ function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerShown: false, animation: "fade" }}>
       <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="auth" options={{ headerShown: false }} />
       <Stack.Screen name="(customer)" options={{ headerShown: false }} />
       <Stack.Screen name="(owner)" options={{ headerShown: false }} />
       <Stack.Screen name="+not-found" />
@@ -48,11 +50,13 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <LanguageProvider>
-          <AppProvider>
-            <GestureHandlerRootView style={{ flex: 1 }}>
-              <RootLayoutNav />
-            </GestureHandlerRootView>
-          </AppProvider>
+          <AuthProvider>
+            <AppProvider>
+              <GestureHandlerRootView style={{ flex: 1 }}>
+                <RootLayoutNav />
+              </GestureHandlerRootView>
+            </AppProvider>
+          </AuthProvider>
         </LanguageProvider>
       </ErrorBoundary>
     </SafeAreaProvider>

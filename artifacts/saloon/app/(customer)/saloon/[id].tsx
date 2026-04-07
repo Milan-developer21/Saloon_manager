@@ -1,10 +1,12 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,7 +16,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SlotButton } from "@/components/SlotButton";
-import { useApp } from "@/context/AppContext";
+import { useApp, type SlotWithStatus } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { useColors } from "@/hooks/useColors";
 
@@ -45,29 +48,44 @@ export default function SaloonDetailScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { saloons, getSaloonSlots, isSlotBooked, getBookingsForSlot, createBooking, deviceId } = useApp();
+  const { saloons, getSaloonSlots, createBooking } = useApp();
+  const { user } = useAuth();
   const { t } = useLanguage();
 
-  const saloon = saloons.find((s) => s.id === id);
+  const saloonId = parseInt(id ?? "0");
+  const saloon = saloons.find((s) => s.id === saloonId);
 
   const [selectedDate, setSelectedDate] = useState(getDateStr(0));
-  const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
+  const [slots, setSlots] = useState<SlotWithStatus[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [selectedSlotId, setSelectedSlotId] = useState<number | null>(null);
   const [selectedService, setSelectedService] = useState("");
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
+  const [customerName, setCustomerName] = useState(user?.name ?? "");
+  const [customerPhone, setCustomerPhone] = useState(user?.phone ?? "");
   const [step, setStep] = useState<"browse" | "book">("browse");
   const [submitting, setSubmitting] = useState(false);
 
   const dateOptions = Array.from({ length: 7 }, (_, i) => getDateStr(i));
-  const slots = useMemo(() => getSaloonSlots(id ?? "", selectedDate), [id, selectedDate, getSaloonSlots]);
   const selectedSlot = slots.find((s) => s.id === selectedSlotId);
 
-  const getSlotStatus = (slot: any) => {
-    if (slot.isBlocked) return "blocked";
-    if (isSlotBooked(slot.id)) return "booked";
-    const bookings = getBookingsForSlot(slot.id);
-    if (bookings.some((b) => b.status === "pending")) return "pending";
-    return slot.id === selectedSlotId ? "selected" : "available";
+  const loadSlots = useCallback(async () => {
+    if (!saloonId) return;
+    setSlotsLoading(true);
+    try {
+      const data = await getSaloonSlots(saloonId, selectedDate);
+      setSlots(data);
+    } catch {
+      setSlots([]);
+    } finally {
+      setSlotsLoading(false);
+    }
+  }, [saloonId, selectedDate]);
+
+  useEffect(() => { loadSlots(); }, [selectedDate, saloonId]);
+
+  const getSlotStatus = (slot: SlotWithStatus) => {
+    if (slot.id === selectedSlotId) return "selected";
+    return slot.status;
   };
 
   const handleBook = async () => {
@@ -79,22 +97,20 @@ export default function SaloonDetailScreen() {
     setSubmitting(true);
     try {
       await createBooking({
-        saloonId: id ?? "",
-        saloonName: saloon?.name ?? "",
+        saloonId,
+        slotId: selectedSlotId,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
-        slotId: selectedSlotId,
-        date: selectedDate,
-        time: selectedSlot.time,
         service: selectedService,
-        deviceId,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         t("bookingRequestSent"),
         t("awaitingConfirmation"),
-        [{ text: t("ok"), onPress: () => { setStep("browse"); setSelectedSlotId(null); } }]
+        [{ text: t("ok"), onPress: () => { setStep("browse"); setSelectedSlotId(null); loadSlots(); } }]
       );
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Booking failed");
     } finally {
       setSubmitting(false);
     }
@@ -105,8 +121,11 @@ export default function SaloonDetailScreen() {
 
   if (!saloon) {
     return (
-      <View style={[{ flex: 1, backgroundColor: colors.background, padding: 20 }]}>
-        <Text style={{ color: colors.foreground }}>Saloon not found</Text>
+      <View style={[{ flex: 1, backgroundColor: colors.background, padding: 20, paddingTop: topPad + 20 }]}>
+        <TouchableOpacity onPress={() => router.back()} style={{ marginBottom: 20 }}>
+          <Feather name="arrow-left" size={24} color={colors.foreground} />
+        </TouchableOpacity>
+        <ActivityIndicator color={colors.primary} />
       </View>
     );
   }
@@ -130,6 +149,7 @@ export default function SaloonDetailScreen() {
         contentContainerStyle={{ paddingBottom: bottomPad + 40 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        refreshControl={step === "browse" ? <RefreshControl refreshing={slotsLoading} onRefresh={loadSlots} /> : undefined}
       >
         <View style={styles.saloonInfo}>
           <Text style={[styles.saloonName, { color: colors.foreground }]}>{saloon.name}</Text>
@@ -177,7 +197,11 @@ export default function SaloonDetailScreen() {
               ))}
             </ScrollView>
 
-            {slots.length === 0 ? (
+            {slotsLoading ? (
+              <View style={styles.emptySlots}>
+                <ActivityIndicator color={colors.primary} />
+              </View>
+            ) : slots.length === 0 ? (
               <View style={styles.emptySlots}>
                 <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>{t("noSlotsAvailable")}</Text>
               </View>
@@ -189,7 +213,11 @@ export default function SaloonDetailScreen() {
                       key={slot.id}
                       time={slot.time}
                       status={getSlotStatus(slot)}
-                      onPress={() => setSelectedSlotId(slot.id)}
+                      onPress={() => {
+                        if (slot.status === "available") {
+                          setSelectedSlotId(slot.id === selectedSlotId ? null : slot.id);
+                        }
+                      }}
                     />
                   ))}
                 </View>
@@ -309,20 +337,7 @@ const styles = StyleSheet.create({
   legendText: { fontSize: 10 },
   emptySlots: { alignItems: "center", paddingVertical: 40 },
   emptyText: { fontSize: 15 },
-  bookBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    borderRadius: 16,
-    paddingVertical: 16,
-    marginTop: 8,
-    shadowColor: "#C0390B",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
+  bookBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 16, paddingVertical: 16, marginTop: 8, shadowColor: "#C0390B", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
   bookBtnText: { color: "#FFF", fontSize: 16, fontWeight: "800" },
   bookForm: { paddingTop: 16 },
   summaryCard: { borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 20 },

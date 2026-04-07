@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SaloonCard } from "@/components/SaloonCard";
 import { useApp } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { useColors } from "@/hooks/useColors";
 
@@ -20,7 +21,8 @@ export default function BrowseSaloonsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { saloons, setRole } = useApp();
+  const { saloons } = useApp();
+  const { logout } = useAuth();
   const { t, language, setLanguage } = useLanguage();
 
   const [search, setSearch] = useState("");
@@ -68,10 +70,10 @@ export default function BrowseSaloonsScreen() {
               <Text style={{ color: language === "hi" ? "#FFF" : colors.foreground, fontWeight: "700", fontSize: 11 }}>हि</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => { setRole(null); router.replace("/"); }}
+              onPress={() => { logout(); router.replace("/"); }}
               style={styles.switchBtn}
             >
-              <Feather name="repeat" size={18} color={colors.mutedForeground} />
+              <Feather name="log-out" size={18} color={colors.mutedForeground} />
             </TouchableOpacity>
           </View>
         </View>

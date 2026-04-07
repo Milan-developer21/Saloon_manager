@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { useColors } from "@/hooks/useColors";
 
@@ -37,7 +38,8 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { mySaloon, registerSaloon, setRole } = useApp();
+  const { mySaloon, registerSaloon, updateSaloon } = useApp();
+  const { user, logout } = useAuth();
   const { t } = useLanguage();
 
   const [name, setName] = useState("");
@@ -60,13 +62,16 @@ export default function ProfileScreen() {
       setPhone(mySaloon.phone);
       setAddress(mySaloon.address);
       setCity(mySaloon.city);
-      setDescription(mySaloon.description);
+      setDescription(mySaloon.description || "");
       setOpenTime(mySaloon.openTime);
       setCloseTime(mySaloon.closeTime);
       setSlotDuration(mySaloon.slotDuration);
       setServices(mySaloon.services);
+    } else if (user) {
+      setOwnerName(user.name);
+      setPhone(user.phone);
     }
-  }, [mySaloon]);
+  }, [mySaloon, user]);
 
   const addService = () => {
     const s = serviceInput.trim();
@@ -91,7 +96,7 @@ export default function ProfileScreen() {
     }
     setSaving(true);
     try {
-      await registerSaloon({
+      const payload = {
         name: name.trim(),
         ownerName: ownerName.trim(),
         phone: phone.trim(),
@@ -102,12 +107,26 @@ export default function ProfileScreen() {
         openTime,
         closeTime,
         slotDuration,
-      });
+      };
+      if (mySaloon) {
+        await updateSaloon(mySaloon.id, payload);
+      } else {
+        await registerSaloon(payload);
+      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("", t("shopRegistered"), [{ text: t("ok") }]);
+      Alert.alert("", mySaloon ? t("update") + " successful" : t("shopRegistered"), [{ text: t("ok") }]);
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Could not save");
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleLogout = () => {
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Logout", style: "destructive", onPress: () => { logout(); router.replace("/"); } },
+    ]);
   };
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -125,13 +144,20 @@ export default function ProfileScreen() {
         <Text style={[styles.title, { color: colors.foreground }]}>
           {isRegistered ? t("editShop") : t("registerShop")}
         </Text>
-        <TouchableOpacity onPress={() => { setRole(null); router.replace("/"); }}>
-          <View style={styles.switchRow}>
-            <Feather name="repeat" size={16} color={colors.mutedForeground} />
-            <Text style={[styles.switchText, { color: colors.mutedForeground }]}>{t("switchRole")}</Text>
+        <TouchableOpacity onPress={handleLogout}>
+          <View style={styles.logoutRow}>
+            <Feather name="log-out" size={16} color={colors.mutedForeground} />
+            <Text style={[styles.logoutText, { color: colors.mutedForeground }]}>Logout</Text>
           </View>
         </TouchableOpacity>
       </View>
+
+      {user && (
+        <View style={[styles.userCard, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+          <Feather name="user" size={16} color={colors.accent} />
+          <Text style={[styles.userText, { color: colors.foreground }]}>{user.name} · {user.phone}</Text>
+        </View>
+      )}
 
       <Field label={`${t("shopName")} *`} value={name} onChange={setName} placeholder="e.g. Sharma Hair Studio" colors={colors} />
       <Field label={`${t("ownerName")} *`} value={ownerName} onChange={setOwnerName} placeholder="e.g. Ramesh Sharma" colors={colors} />
@@ -254,10 +280,12 @@ const fieldStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { paddingHorizontal: 20 },
-  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
   title: { fontSize: 24, fontWeight: "900" },
-  switchRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  switchText: { fontSize: 13 },
+  logoutRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  logoutText: { fontSize: 13 },
+  userCard: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 12, borderWidth: 1, padding: 12, marginBottom: 16 },
+  userText: { fontSize: 13, fontWeight: "600" },
   sectionLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 1, marginBottom: 10, marginTop: 6 },
   timeRow: { gap: 8, paddingBottom: 16 },
   timeChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },

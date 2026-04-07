@@ -1,7 +1,9 @@
 import { Feather } from "@expo/vector-icons";
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,32 +12,49 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BookingStatusCard } from "@/components/BookingStatusCard";
-import { useApp } from "@/context/AppContext";
+import { useApp, type Booking } from "@/context/AppContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { useColors } from "@/hooks/useColors";
 
 type Filter = "all" | "pending" | "accepted" | "rejected";
-
 const FILTERS: Filter[] = ["all", "pending", "accepted", "rejected"];
 
 export default function RequestsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { mySaloon, bookings, respondToBooking } = useApp();
+  const { mySaloon, getSaloonBookings, respondToBooking } = useApp();
   const { t } = useLanguage();
   const [filter, setFilter] = useState<Filter>("pending");
+  const [allBookings, setAllBookings] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!mySaloon) return;
+    try {
+      const data = await getSaloonBookings();
+      setAllBookings(data);
+    } catch {}
+  }, [mySaloon, getSaloonBookings]);
+
+  useEffect(() => { load().finally(() => setLoading(false)); }, [mySaloon?.id]);
+
+  const handleRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
+
+  const handleRespond = async (bookingId: number, status: "accepted" | "rejected") => {
+    try {
+      await respondToBooking(bookingId, status);
+      setAllBookings((prev) => prev.map((b) => b.id === bookingId ? { ...b, status } : b));
+    } catch {}
+  };
 
   const myBookings = useMemo(() => {
-    if (!mySaloon) return [];
-    return bookings
-      .filter((b) => b.saloonId === mySaloon.id && (filter === "all" || b.status === filter))
+    return allBookings
+      .filter((b) => filter === "all" || b.status === filter)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [bookings, mySaloon, filter]);
+  }, [allBookings, filter]);
 
-  const pendingCount = useMemo(() => {
-    if (!mySaloon) return 0;
-    return bookings.filter((b) => b.saloonId === mySaloon.id && b.status === "pending").length;
-  }, [bookings, mySaloon]);
+  const pendingCount = useMemo(() => allBookings.filter((b) => b.status === "pending").length, [allBookings]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
@@ -71,35 +90,39 @@ export default function RequestsScreen() {
         </ScrollView>
       </View>
 
-      <ScrollView
-        style={styles.list}
-        contentContainerStyle={[
-          styles.listContent,
-          { paddingBottom: Platform.OS === "web" ? 100 : insets.bottom + 100 },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        {!mySaloon ? (
-          <View style={styles.empty}>
-            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>{t("notRegistered")}</Text>
-          </View>
-        ) : myBookings.length === 0 ? (
-          <View style={styles.empty}>
-            <Feather name="inbox" size={40} color={colors.mutedForeground} />
-            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>{t("noRequests")}</Text>
-          </View>
-        ) : (
-          myBookings.map((b) => (
-            <BookingStatusCard
-              key={b.id}
-              booking={b}
-              showActions
-              onAccept={b.status === "pending" ? () => respondToBooking(b.id, "accepted") : undefined}
-              onReject={b.status === "pending" ? () => respondToBooking(b.id, "rejected") : undefined}
-            />
-          ))
-        )}
-      </ScrollView>
+      {!mySaloon ? (
+        <View style={styles.empty}>
+          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>{t("notRegistered")}</Text>
+        </View>
+      ) : loading ? (
+        <View style={styles.empty}>
+          <ActivityIndicator color={colors.accent} />
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.list}
+          contentContainerStyle={[styles.listContent, { paddingBottom: Platform.OS === "web" ? 100 : insets.bottom + 100 }]}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+        >
+          {myBookings.length === 0 ? (
+            <View style={styles.empty}>
+              <Feather name="inbox" size={40} color={colors.mutedForeground} />
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>{t("noRequests")}</Text>
+            </View>
+          ) : (
+            myBookings.map((b) => (
+              <BookingStatusCard
+                key={b.id}
+                booking={b}
+                showActions
+                onAccept={b.status === "pending" ? () => handleRespond(b.id, "accepted") : undefined}
+                onReject={b.status === "pending" ? () => handleRespond(b.id, "rejected") : undefined}
+              />
+            ))
+          )}
+        </ScrollView>
+      )}
     </View>
   );
 }

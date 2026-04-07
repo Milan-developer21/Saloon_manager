@@ -37,14 +37,19 @@ export function BookingStatusCard({ booking, showActions, onAccept, onReject, on
 
   const ss = getStatusStyle();
 
+  const slotTime = booking.slot?.time ?? (booking as any).time ?? "";
+  const slotDate = booking.slot?.date ?? (booking as any).date ?? "";
+  const saloonName = (booking as any).saloon?.name ?? (booking as any).saloonName ?? "";
+
   return (
     <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={styles.row}>
         <View style={styles.left}>
           <Text style={[styles.customerName, { color: colors.foreground }]}>{booking.customerName}</Text>
           <Text style={[styles.detail, { color: colors.mutedForeground }]}>
-            {booking.service} · {formatTime(booking.time)} · {booking.date}
+            {booking.service}{slotTime ? ` · ${formatTime(slotTime)}` : ""}{slotDate ? ` · ${slotDate}` : ""}
           </Text>
+          {saloonName ? <Text style={[styles.phone, { color: colors.mutedForeground }]}>{saloonName}</Text> : null}
           {booking.customerPhone ? (
             <Text style={[styles.phone, { color: colors.mutedForeground }]}>{booking.customerPhone}</Text>
           ) : null}

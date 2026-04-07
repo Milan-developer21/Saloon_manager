@@ -27,6 +27,7 @@ const translations = {
     owner: "Saloon Owner",
     ownerDesc: "Manage your shop and bookings",
     switchRole: "Switch Role",
+    logout: "Logout",
 
     // Customer
     browseSaloons: "Saloons",
@@ -157,6 +158,7 @@ const translations = {
     owner: "सलून मालिक",
     ownerDesc: "अपनी दुकान और बुकिंग प्रबंधित करें",
     switchRole: "भूमिका बदलें",
+    logout: "लॉग आउट",
 
     // Customer
     browseSaloons: "सलून",
