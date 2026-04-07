@@ -256,7 +256,8 @@ export default function SaloonDetailScreen() {
                       time={slot.time}
                       status={getSlotStatus(slot)}
                       onPress={() => {
-                        if (slot.status === "available") {
+                        const displayStatus = getSlotStatus(slot);
+                        if (displayStatus === "available" || displayStatus === "selected") {
                           setSelectedSlotId(slot.id === selectedSlotId ? null : slot.id);
                         }
                       }}
