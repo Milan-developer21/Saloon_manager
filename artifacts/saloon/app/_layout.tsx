@@ -5,28 +5,48 @@ import {
   Inter_700Bold,
   useFonts,
 } from "@expo-google-fonts/inter";
-import { Stack } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { AuthProvider } from "@/context/AuthContext";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { AppProvider } from "@/context/AppContext";
 import { LanguageProvider } from "@/context/LanguageContext";
 
 SplashScreen.preventAutoHideAsync();
 
+function AuthGuard() {
+  const { user, loading } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (loading) return;
+    const inProtected =
+      segments[0] === "(owner)" || segments[0] === "(customer)";
+    if (!user && inProtected) {
+      router.replace("/");
+    }
+  }, [user, loading, segments]);
+
+  return null;
+}
+
 function RootLayoutNav() {
   return (
-    <Stack screenOptions={{ headerShown: false, animation: "fade" }}>
-      <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="auth" options={{ headerShown: false }} />
-      <Stack.Screen name="(customer)" options={{ headerShown: false }} />
-      <Stack.Screen name="(owner)" options={{ headerShown: false }} />
-      <Stack.Screen name="+not-found" />
-    </Stack>
+    <>
+      <AuthGuard />
+      <Stack screenOptions={{ headerShown: false, animation: "fade" }}>
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="auth" options={{ headerShown: false }} />
+        <Stack.Screen name="(customer)" options={{ headerShown: false }} />
+        <Stack.Screen name="(owner)" options={{ headerShown: false }} />
+        <Stack.Screen name="+not-found" />
+      </Stack>
+    </>
   );
 }
 

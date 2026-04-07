@@ -1,6 +1,5 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -37,7 +36,6 @@ function formatTime(time: string) {
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const { mySaloon, registerSaloon, updateSaloon } = useApp();
   const { user, logout } = useAuth();
   const { t } = useLanguage();
@@ -125,7 +123,7 @@ export default function ProfileScreen() {
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
       { text: "Cancel", style: "cancel" },
-      { text: "Logout", style: "destructive", onPress: async () => { await logout(); router.replace("/"); } },
+      { text: "Logout", style: "destructive", onPress: () => logout() },
     ]);
   };
 
