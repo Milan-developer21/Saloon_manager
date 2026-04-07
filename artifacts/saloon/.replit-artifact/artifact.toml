@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/"
+title = "Saloon Manager"
+version = "1.0.0"
+id = "artifacts/saloon"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/" ]
+localPort = 19962
+
+[services.development]
+run = "pnpm --filter @workspace/saloon run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/saloon", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/saloon", "run", "serve" ]
+
+[services.env]
+PORT = "19962"
+BASE_PATH = "/"

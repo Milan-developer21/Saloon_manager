@@ -16,6 +16,22 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
 
+## Artifacts
+
+### Saloon Manager (mobile app)
+- **Path**: `artifacts/saloon/`
+- **Type**: Expo (React Native)
+- **Preview**: `/` (root path)
+- **Description**: Saloon management app for appointments and customer management
+- **Storage**: AsyncStorage (no backend required)
+- **Features**:
+  - Dashboard with today's appointments, revenue, and stats
+  - Appointment booking (multi-step flow: customer → service → date/time → review)
+  - Appointment management (mark complete, no-show, cancel)
+  - Customer profiles with visit history and total spend
+  - Services catalog with categories, prices, duration
+  - Search/filter across all entities
+
 ## Key Commands
 
 - `pnpm run typecheck` — full typecheck across all packages
