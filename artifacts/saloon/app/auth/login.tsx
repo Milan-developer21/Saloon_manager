@@ -3,7 +3,7 @@ import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-  Alert, KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -23,13 +23,15 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
+  const [error, setError] = useState("");
 
   const isOwner = role === "owner";
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const handleLogin = async () => {
+    setError("");
     if (!phone.trim() || !password.trim()) {
-      Alert.alert("", "Please enter phone and password");
+      setError("Please enter phone and password");
       return;
     }
     setLoading(true);
@@ -42,7 +44,7 @@ export default function LoginScreen() {
         router.replace("/(customer)");
       }
     } catch (err: any) {
-      Alert.alert("Login Failed", err.message || "Invalid credentials");
+      setError(err.message || "Invalid credentials");
     } finally {
       setLoading(false);
     }
@@ -65,6 +67,13 @@ export default function LoginScreen() {
           Enter your phone and password
         </Text>
 
+        {error ? (
+          <View style={[styles.errorBox, { backgroundColor: colors.redBg }]}>
+            <Feather name="alert-circle" size={15} color={colors.primary} />
+            <Text style={[styles.errorText, { color: colors.primary }]}>{error}</Text>
+          </View>
+        ) : null}
+
         <View style={styles.form}>
           <Text style={[styles.label, { color: colors.mutedForeground }]}>{t("phone")}</Text>
           <TextInput
@@ -75,6 +84,8 @@ export default function LoginScreen() {
             placeholderTextColor={colors.mutedForeground}
             keyboardType="phone-pad"
             autoCapitalize="none"
+            testID="phone-input"
+            accessibilityLabel="Phone Number"
           />
 
           <Text style={[styles.label, { color: colors.mutedForeground }]}>Password</Text>
@@ -87,6 +98,8 @@ export default function LoginScreen() {
               placeholderTextColor={colors.mutedForeground}
               secureTextEntry={!showPass}
               autoCapitalize="none"
+              testID="password-input"
+              accessibilityLabel="Password"
             />
             <TouchableOpacity onPress={() => setShowPass(!showPass)}>
               <Feather name={showPass ? "eye-off" : "eye"} size={18} color={colors.mutedForeground} />
@@ -97,6 +110,9 @@ export default function LoginScreen() {
             style={[styles.btn, { backgroundColor: isOwner ? colors.accent : colors.primary, opacity: loading ? 0.7 : 1 }]}
             onPress={handleLogin}
             disabled={loading}
+            testID="login-btn"
+            accessibilityRole="button"
+            accessibilityLabel="Login"
           >
             <Text style={styles.btnText}>{loading ? t("loading") : "Login"}</Text>
           </TouchableOpacity>
@@ -123,7 +139,9 @@ const styles = StyleSheet.create({
   back: { marginBottom: 24 },
   iconContainer: { width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center", alignSelf: "center", marginBottom: 16 },
   title: { fontSize: 26, fontWeight: "900", textAlign: "center" },
-  subtitle: { fontSize: 14, textAlign: "center", marginTop: 6, marginBottom: 32 },
+  subtitle: { fontSize: 14, textAlign: "center", marginTop: 6, marginBottom: 16 },
+  errorBox: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 12, padding: 14, marginBottom: 8 },
+  errorText: { fontSize: 13, fontWeight: "600", flex: 1 },
   form: { gap: 4 },
   label: { fontSize: 12, fontWeight: "700", marginBottom: 6, marginTop: 12 },
   input: { borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 14, fontSize: 16 },

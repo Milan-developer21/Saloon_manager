@@ -1,7 +1,8 @@
 import { Feather } from "@expo/vector-icons";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   Platform,
   RefreshControl,
   ScrollView,
@@ -22,7 +23,7 @@ const FILTERS: Filter[] = ["all", "pending", "accepted", "rejected"];
 export default function RequestsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { mySaloon, getSaloonBookings, respondToBooking } = useApp();
+  const { mySaloon, loadMySaloon, getSaloonBookings, respondToBooking } = useApp();
   const { t } = useLanguage();
   const [filter, setFilter] = useState<Filter>("pending");
   const [allBookings, setAllBookings] = useState<Booking[]>([]);
@@ -37,7 +38,32 @@ export default function RequestsScreen() {
     } catch {}
   }, [mySaloon, getSaloonBookings]);
 
-  useEffect(() => { load().finally(() => setLoading(false)); }, [mySaloon?.id]);
+  // Ensure mySaloon is loaded (in case Requests tab opened directly)
+  useEffect(() => {
+    loadMySaloon();
+  }, []);
+
+  useEffect(() => {
+    if (mySaloon) {
+      load().finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
+  }, [mySaloon?.id]);
+
+  // Poll every 10 s for new bookings
+  useEffect(() => {
+    const id = setInterval(() => { load(); }, 10_000);
+    return () => clearInterval(id);
+  }, [load]);
+
+  // Refresh when app comes back to foreground
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") load();
+    });
+    return () => sub.remove();
+  }, [load]);
 
   const handleRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
@@ -91,9 +117,15 @@ export default function RequestsScreen() {
       </View>
 
       {!mySaloon ? (
-        <View style={styles.empty}>
-          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>{t("notRegistered")}</Text>
-        </View>
+        loading ? (
+          <View style={styles.empty}>
+            <ActivityIndicator color={colors.accent} />
+          </View>
+        ) : (
+          <View style={styles.empty}>
+            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>{t("notRegistered")}</Text>
+          </View>
+        )
       ) : loading ? (
         <View style={styles.empty}>
           <ActivityIndicator color={colors.accent} />

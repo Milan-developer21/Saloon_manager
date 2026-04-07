@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   Platform,
   RefreshControl,
   ScrollView,
@@ -41,7 +42,7 @@ export default function OwnerDashboard() {
       const data = await getSaloonBookings();
       setBookings(data);
     } catch {}
-  }, [mySaloon, getSaloonBookings]);
+  }, [mySaloon?.id, getSaloonBookings]);
 
   useEffect(() => {
     loadMySaloon();
@@ -53,6 +54,20 @@ export default function OwnerDashboard() {
       loadBookings().finally(() => setLoadingBookings(false));
     }
   }, [mySaloon?.id]);
+
+  // Poll every 10 s for live booking updates
+  useEffect(() => {
+    const id = setInterval(() => { loadBookings(); }, 10_000);
+    return () => clearInterval(id);
+  }, [loadBookings]);
+
+  // Refresh when app returns to foreground
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") { loadMySaloon(); loadBookings(); }
+    });
+    return () => sub.remove();
+  }, [loadMySaloon, loadBookings]);
 
   const handleRefresh = async () => {
     setRefreshing(true);

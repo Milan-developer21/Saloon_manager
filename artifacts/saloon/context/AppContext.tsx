@@ -24,7 +24,7 @@ export interface SlotWithStatus {
   date: string;
   time: string;
   isBlocked: boolean;
-  status: "available" | "booked" | "pending" | "blocked";
+  status: "available" | "booked" | "pending" | "blocked" | "past";
 }
 
 export interface Booking {

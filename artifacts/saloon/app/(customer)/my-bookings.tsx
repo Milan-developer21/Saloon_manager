@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   Platform,
   RefreshControl,
   ScrollView,
@@ -38,6 +39,20 @@ export default function MyBookingsScreen() {
   }, [getMyBookings]);
 
   useEffect(() => { load().finally(() => setLoading(false)); }, []);
+
+  // Poll every 15 s to reflect owner accept/reject without manual refresh
+  useEffect(() => {
+    const id = setInterval(() => { load(); }, 15_000);
+    return () => clearInterval(id);
+  }, [load]);
+
+  // Refresh when app returns to foreground
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") load();
+    });
+    return () => sub.remove();
+  }, [load]);
 
   const handleRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 

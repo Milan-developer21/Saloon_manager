@@ -3,7 +3,7 @@ import React from "react";
 import { StyleSheet, Text, TouchableOpacity } from "react-native";
 import { useColors } from "@/hooks/useColors";
 
-type SlotStatus = "available" | "selected" | "booked" | "blocked" | "pending";
+type SlotStatus = "available" | "selected" | "booked" | "blocked" | "pending" | "past";
 
 interface Props {
   time: string;
@@ -31,13 +31,15 @@ export function SlotButton({ time, status, onPress }: Props) {
         return { bg: colors.muted, border: colors.border, text: colors.mutedForeground };
       case "pending":
         return { bg: colors.yellowBg, border: colors.yellow, text: colors.yellow };
+      case "past":
+        return { bg: colors.muted, border: colors.border, text: colors.mutedForeground };
       default:
         return { bg: colors.card, border: colors.border, text: colors.foreground };
     }
   };
 
   const s = getStyle();
-  const disabled = status === "booked" || status === "blocked";
+  const disabled = status === "booked" || status === "blocked" || status === "past";
 
   return (
     <TouchableOpacity

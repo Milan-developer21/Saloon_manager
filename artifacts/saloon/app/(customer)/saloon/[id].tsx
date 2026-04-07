@@ -104,8 +104,22 @@ export default function SaloonDetailScreen() {
 
   useEffect(() => { loadSlots(); }, [selectedDate, saloonId]);
 
+  // Poll slots every 15 s so availability stays up-to-date without manual refresh
+  useEffect(() => {
+    if (step !== "browse") return;
+    const id = setInterval(() => { loadSlots(); }, 15_000);
+    return () => clearInterval(id);
+  }, [step, loadSlots]);
+
   const getSlotStatus = (slot: SlotWithStatus) => {
     if (slot.id === selectedSlotId) return "selected";
+    // Client-side time check: disable available slots in the past or within next 30 min (today only)
+    if (slot.status === "available" && selectedDate === getDateStr(0)) {
+      const now = new Date();
+      const nowMins = now.getHours() * 60 + now.getMinutes();
+      const [h, m] = slot.time.split(":").map(Number);
+      if (h * 60 + m < nowMins + 30) return "past";
+    }
     return slot.status;
   };
 
@@ -256,6 +270,7 @@ export default function SaloonDetailScreen() {
                     { color: colors.primary, label: "Selected" },
                     { color: colors.yellowBg, label: "Pending" },
                     { color: colors.redBg, label: "Booked" },
+                    { color: colors.muted, label: "Past" },
                   ].map((item) => (
                     <View key={item.label} style={styles.legendItem}>
                       <View style={[styles.legendDot, { backgroundColor: item.color, borderColor: colors.border, borderWidth: 1 }]} />

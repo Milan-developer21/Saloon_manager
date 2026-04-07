@@ -57,12 +57,28 @@ router.get("/:id/slots", async (req, res) => {
 
     const bookings = await db.select().from(bookingsTable).where(eq(bookingsTable.saloonId, saloonId));
 
+    // For today: compute current time in minutes to mark past/too-soon slots
+    const todayStr = getDateStr(0);
+    let nowMinutes = -1;
+    if (date === todayStr) {
+      const now = new Date();
+      nowMinutes = now.getHours() * 60 + now.getMinutes();
+    }
+
     const slotsWithStatus = slots.map((slot) => {
       const slotBookings = bookings.filter((b) => b.slotId === slot.id);
       let status = "available";
       if (slot.isBlocked) status = "blocked";
       else if (slotBookings.some((b) => b.status === "accepted")) status = "booked";
       else if (slotBookings.some((b) => b.status === "pending")) status = "pending";
+
+      // Mark available today-slots that are past or within the next 30 min as "past"
+      if (status === "available" && nowMinutes >= 0) {
+        const [h, m] = slot.time.split(":").map(Number);
+        const slotMinutes = h * 60 + m;
+        if (slotMinutes < nowMinutes + 30) status = "past";
+      }
+
       return { ...slot, status };
     });
 
