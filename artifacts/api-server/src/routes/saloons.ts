@@ -1,3 +1,6 @@
+// Saloon management routes for the Saloon Manager API
+// Handles CRUD operations for saloons, time slots, and related functionality
+
 import { Router } from "express";
 import { BookingModel, SaloonModel, TimeSlotModel, getNextSequence, getNextSequenceRange } from "@workspace/db";
 import { verifyToken, requireOwner, type AuthRequest } from "../middlewares/auth.js";
@@ -5,14 +8,17 @@ import { getLocalDateWithOffset } from "../lib/date.js";
 
 const router = Router();
 
+// Helper function to parse ID parameters from request
 function parseIdParam(value: string | string[]): number {
   return parseInt(Array.isArray(value) ? value[0] : value, 10);
 }
 
+// Helper function to get date string with offset
 function getDateStr(offset: number) {
   return getLocalDateWithOffset(offset);
 }
 
+// Generate time slots for a specific day based on saloon hours and duration
 function generateSlotsForDay(saloonId: number, date: string, openTime: string, closeTime: string, duration: number) {
   const slots: Array<{ saloonId: number; date: string; time: string; isBlocked: boolean }> = [];
   const [openH, openM] = openTime.split(":").map(Number);
@@ -35,6 +41,7 @@ function generateSlotsForDay(saloonId: number, date: string, openTime: string, c
   return slots;
 }
 
+// GET /saloons - List all saloons
 router.get("/", async (_req, res) => {
   try {
     const saloons = await SaloonModel.find().sort({ createdAt: 1 }).exec();
@@ -44,6 +51,7 @@ router.get("/", async (_req, res) => {
   }
 });
 
+// GET /saloons/:id - Get specific saloon details
 router.get("/:id", async (req, res) => {
   try {
     const saloon = await SaloonModel.findOne({ id: parseIdParam(req.params.id) }).exec();
@@ -54,6 +62,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
+// GET /saloons/:id/slots - Get time slots for a saloon on a specific date
 router.get("/:id/slots", async (req, res) => {
   try {
     const saloonId = parseIdParam(req.params.id);
@@ -89,6 +98,7 @@ router.get("/:id/slots", async (req, res) => {
   }
 });
 
+// POST /saloons - Create a new saloon (owner only)
 router.post("/", verifyToken, requireOwner, async (req: AuthRequest, res) => {
   try {
     const existing = await SaloonModel.findOne({ ownerId: req.userId! }).exec();
@@ -117,6 +127,7 @@ router.post("/", verifyToken, requireOwner, async (req: AuthRequest, res) => {
       slotDuration: slotDuration || 30,
     });
 
+    // Generate time slots for the next 7 days
     const allSlots = [];
     for (let i = 0; i < 7; i++) {
       allSlots.push(...generateSlotsForDay(saloon.id, getDateStr(i), saloon.openTime, saloon.closeTime, saloon.slotDuration));
@@ -133,6 +144,7 @@ router.post("/", verifyToken, requireOwner, async (req: AuthRequest, res) => {
   }
 });
 
+// PUT /saloons/:id - Update saloon details (owner only)
 router.put("/:id", verifyToken, requireOwner, async (req: AuthRequest, res) => {
   try {
     const id = parseIdParam(req.params.id);
@@ -165,6 +177,7 @@ router.put("/:id", verifyToken, requireOwner, async (req: AuthRequest, res) => {
   }
 });
 
+// PATCH /saloons/:id/toggle-open - Toggle saloon open/closed status (owner only)
 router.patch("/:id/toggle-open", verifyToken, requireOwner, async (req: AuthRequest, res) => {
   try {
     const id = parseIdParam(req.params.id);
@@ -183,6 +196,7 @@ router.patch("/:id/toggle-open", verifyToken, requireOwner, async (req: AuthRequ
   }
 });
 
+// POST /saloons/:id/slots/generate - Generate time slots for the next 7 days (owner only)
 router.post("/:id/slots/generate", verifyToken, requireOwner, async (req: AuthRequest, res) => {
   try {
     const saloonId = parseIdParam(req.params.id);
@@ -207,6 +221,7 @@ router.post("/:id/slots/generate", verifyToken, requireOwner, async (req: AuthRe
   }
 });
 
+// GET /saloons/:id/bookings - Get all bookings for a saloon (owner only)
 router.get("/:id/bookings", verifyToken, requireOwner, async (req: AuthRequest, res) => {
   try {
     const saloonId = parseIdParam(req.params.id);
@@ -227,6 +242,7 @@ router.get("/:id/bookings", verifyToken, requireOwner, async (req: AuthRequest, 
   }
 });
 
+// PATCH /saloons/:id/slots/:slotId/block - Toggle slot blocked status (owner only)
 router.patch("/:id/slots/:slotId/block", verifyToken, requireOwner, async (req: AuthRequest, res) => {
   try {
     const saloonId = parseIdParam(req.params.id);

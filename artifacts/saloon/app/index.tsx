@@ -1,3 +1,6 @@
+// Role selector screen for the Saloon Manager mobile app
+// Allows users to choose between customer and owner roles, with language switching
+
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect } from "react";
@@ -16,9 +19,11 @@ export default function RoleSelector() {
   const { user, loading } = useAuth();
   const { t, language, setLanguage } = useLanguage();
 
+  // Calculate safe area padding for different platforms
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
+  // Auto-redirect authenticated users to their role-specific screens
   useEffect(() => {
     if (!loading && user) {
       if (user.role === "owner") {
@@ -29,6 +34,7 @@ export default function RoleSelector() {
     }
   }, [user, loading]);
 
+  // Show loading screen while checking authentication
   if (loading) {
     return (
       <View style={[styles.loading, { backgroundColor: colors.background }]}>
@@ -40,10 +46,12 @@ export default function RoleSelector() {
     );
   }
 
+  // Don't render if user is already authenticated
   if (user) return null;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topPad, paddingBottom: bottomPad }]}>
+      {/* Language selector buttons */}
       <View style={styles.langRow}>
         <TouchableOpacity style={[styles.langBtn, { backgroundColor: language === "en" ? colors.primary : colors.secondary }]} onPress={() => setLanguage("en")}>
           <Text style={{ color: language === "en" ? "#FFF" : colors.foreground, fontWeight: "700", fontSize: 13 }}>EN</Text>
@@ -54,6 +62,7 @@ export default function RoleSelector() {
       </View>
 
       <View style={styles.center}>
+        {/* App logo and branding */}
         <View style={[styles.logoContainer, { backgroundColor: colors.primary }]}>
           <Feather name="scissors" size={36} color="#FFF" />
         </View>
@@ -62,6 +71,7 @@ export default function RoleSelector() {
 
         <Text style={[styles.chooseLabel, { color: colors.foreground }]}>{t("chooseRole")}</Text>
 
+        {/* Customer role card */}
         <View style={[styles.roleCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={[styles.roleIcon, { backgroundColor: colors.secondary }]}>
             <Feather name="user" size={26} color={colors.primary} />
@@ -86,6 +96,7 @@ export default function RoleSelector() {
           </View>
         </View>
 
+        {/* Owner role card */}
         <View style={[styles.roleCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={[styles.roleIcon, { backgroundColor: "#FEF0E6" }]}>
             <Feather name="briefcase" size={26} color={colors.accent} />
@@ -114,6 +125,7 @@ export default function RoleSelector() {
   );
 }
 
+// Styles for the role selector screen
 const styles = StyleSheet.create({
   loading: { flex: 1, alignItems: "center", justifyContent: "center" },
   container: { flex: 1, paddingHorizontal: 24 },
