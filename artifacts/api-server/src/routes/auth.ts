@@ -2,7 +2,7 @@
 // Handles user registration, login, and profile retrieval
 
 import { Router } from "express";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 import { UserModel, getNextSequence, type User } from "@workspace/db";
 import { signToken, verifyToken, type AuthRequest } from "../middlewares/auth.js";
 
