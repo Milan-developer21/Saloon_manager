@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp, type SlotWithStatus } from "@/context/AppContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { useColors } from "@/hooks/useColors";
+import { getLocalDateWithOffset } from "@/lib/date";
 
 function formatTime(time: string) {
   const [h, m] = time.split(":").map(Number);
@@ -25,9 +26,7 @@ function formatTime(time: string) {
 }
 
 function getDateStr(offset: number) {
-  const d = new Date();
-  d.setDate(d.getDate() + offset);
-  return d.toISOString().split("T")[0];
+  return getLocalDateWithOffset(offset);
 }
 
 function formatDateLabel(dateStr: string) {
