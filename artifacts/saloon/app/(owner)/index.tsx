@@ -20,6 +20,7 @@ import { useApp, type Booking } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { useColors } from "@/hooks/useColors";
+import { getLocalDateString } from "@/lib/date";
 
 export default function OwnerDashboard() {
   const colors = useColors();
@@ -34,7 +35,7 @@ export default function OwnerDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [toggling, setToggling] = useState(false);
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = getLocalDateString();
 
   const loadBookings = useCallback(async () => {
     if (!mySaloon) return;
