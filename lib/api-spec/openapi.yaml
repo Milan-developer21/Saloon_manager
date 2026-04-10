@@ -3,13 +3,19 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: API specification for Saloon Manager
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: saloons
+    description: Saloon management operations
+  - name: bookings
+    description: Booking management operations
 paths:
   /healthz:
     get:
@@ -24,7 +30,628 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /auth/register:
+    post:
+      operationId: registerUser
+      tags: [auth]
+      summary: Register a new user
+      description: Register a new customer or owner user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                phone:
+                  type: string
+                password:
+                  type: string
+                role:
+                  type: string
+                  enum: [customer, owner]
+                  default: customer
+              required:
+                - name
+                - phone
+                - password
+      responses:
+        "200":
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Phone already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /auth/login:
+    post:
+      operationId: loginUser
+      tags: [auth]
+      summary: Authenticate user
+      description: Login with phone and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone:
+                  type: string
+                password:
+                  type: string
+              required:
+                - phone
+                - password
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Get current user profile
+      description: Retrieve the authenticated user's profile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /saloons:
+    get:
+      operationId: listSaloons
+      tags: [saloons]
+      summary: List all saloons
+      description: Get a list of all registered saloons
+      responses:
+        "200":
+          description: List of saloons
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Saloon"
+                required:
+                  - success
+                  - data
+    post:
+      operationId: createSaloon
+      tags: [saloons]
+      summary: Create a new saloon
+      description: Create a new saloon (owner only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSaloonRequest"
+      responses:
+        "200":
+          description: Saloon created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Saloon"
+                required:
+                  - success
+                  - data
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Owner already has a saloon
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /saloons/{id}:
+    get:
+      operationId: getSaloon
+      tags: [saloons]
+      summary: Get saloon details
+      description: Get details of a specific saloon
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Saloon details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Saloon"
+                required:
+                  - success
+                  - data
+        "404":
+          description: Saloon not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: updateSaloon
+      tags: [saloons]
+      summary: Update saloon details
+      description: Update saloon information (owner only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSaloonRequest"
+      responses:
+        "200":
+          description: Saloon updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Saloon"
+                required:
+                  - success
+                  - data
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Saloon not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /saloons/{id}/toggle-open:
+    patch:
+      operationId: toggleSaloonOpen
+      tags: [saloons]
+      summary: Toggle saloon open/closed status
+      description: Toggle the open/closed status of a saloon (owner only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Status toggled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Saloon"
+                required:
+                  - success
+                  - data
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /saloons/{id}/slots:
+    get:
+      operationId: getSaloonSlots
+      tags: [saloons]
+      summary: Get saloon time slots
+      description: Get available time slots for a saloon on a specific date
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Time slots
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TimeSlotWithStatus"
+                required:
+                  - success
+                  - data
+  /saloons/{id}/slots/generate:
+    post:
+      operationId: generateSaloonSlots
+      tags: [saloons]
+      summary: Generate time slots
+      description: Generate time slots for the next 7 days (owner only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Slots generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                required:
+                  - success
+                  - data
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /saloons/{id}/bookings:
+    get:
+      operationId: getSaloonBookings
+      tags: [saloons]
+      summary: Get saloon bookings
+      description: Get all bookings for a saloon (owner only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Bookings list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/BookingWithSlot"
+                required:
+                  - success
+                  - data
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /saloons/{id}/slots/{slotId}/block:
+    patch:
+      operationId: toggleSlotBlock
+      tags: [saloons]
+      summary: Toggle slot blocked status
+      description: Block or unblock a time slot (owner only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: slotId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Slot status updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/TimeSlot"
+                required:
+                  - success
+                  - data
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Slot not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /bookings:
+    post:
+      operationId: createBooking
+      tags: [bookings]
+      summary: Create a booking
+      description: Create a new booking request (customer only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBookingRequest"
+      responses:
+        "200":
+          description: Booking created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/BookingWithSlot"
+                required:
+                  - success
+                  - data
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Slot not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /bookings/my:
+    get:
+      operationId: getMyBookings
+      tags: [bookings]
+      summary: Get user's bookings
+      description: Get all bookings for the authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: User's bookings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/BookingWithSaloonAndSlot"
+                required:
+                  - success
+                  - data
+  /bookings/{id}/respond:
+    patch:
+      operationId: respondToBooking
+      tags: [bookings]
+      summary: Respond to booking
+      description: Accept or reject a booking request (owner only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [accepted, rejected]
+              required:
+                - status
+      responses:
+        "200":
+          description: Response recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Booking"
+                required:
+                  - success
+                  - data
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Booking not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /bookings/{id}/cancel:
+    patch:
+      operationId: cancelBooking
+      tags: [bookings]
+      summary: Cancel booking
+      description: Cancel a pending booking (customer only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Booking cancelled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Booking"
+                required:
+                  - success
+                  - data
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Booking not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     HealthStatus:
       type: object
@@ -33,4 +660,271 @@ components:
           type: string
       required:
         - status
-
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+      required:
+        - success
+        - error
+    AuthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            token:
+              type: string
+            user:
+              $ref: "#/components/schemas/User"
+          required:
+            - token
+            - user
+      required:
+        - success
+        - data
+    UserResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: "#/components/schemas/User"
+      required:
+        - success
+        - data
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        phone:
+          type: string
+        role:
+          type: string
+          enum: [customer, owner]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - phone
+        - role
+        - createdAt
+    Saloon:
+      type: object
+      properties:
+        id:
+          type: integer
+        ownerId:
+          type: integer
+        name:
+          type: string
+        ownerName:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        description:
+          type: string
+        services:
+          type: array
+          items:
+            type: string
+        openTime:
+          type: string
+        closeTime:
+          type: string
+        isOpen:
+          type: boolean
+        slotDuration:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - ownerId
+        - name
+        - ownerName
+        - phone
+        - address
+        - city
+        - description
+        - services
+        - openTime
+        - closeTime
+        - isOpen
+        - slotDuration
+        - createdAt
+    CreateSaloonRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        ownerName:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        description:
+          type: string
+        services:
+          type: array
+          items:
+            type: string
+        openTime:
+          type: string
+        closeTime:
+          type: string
+        isOpen:
+          type: boolean
+        slotDuration:
+          type: integer
+      required:
+        - name
+        - ownerName
+        - phone
+        - city
+    UpdateSaloonRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        ownerName:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        description:
+          type: string
+        services:
+          type: array
+          items:
+            type: string
+        openTime:
+          type: string
+        closeTime:
+          type: string
+        isOpen:
+          type: boolean
+        slotDuration:
+          type: integer
+    TimeSlot:
+      type: object
+      properties:
+        id:
+          type: integer
+        saloonId:
+          type: integer
+        date:
+          type: string
+          format: date
+        time:
+          type: string
+        isBlocked:
+          type: boolean
+      required:
+        - id
+        - saloonId
+        - date
+        - time
+        - isBlocked
+    TimeSlotWithStatus:
+      allOf:
+        - $ref: "#/components/schemas/TimeSlot"
+        - type: object
+          properties:
+            status:
+              type: string
+              enum: [available, blocked, booked, pending, past]
+          required:
+            - status
+    Booking:
+      type: object
+      properties:
+        id:
+          type: integer
+        saloonId:
+          type: integer
+        slotId:
+          type: integer
+        customerId:
+          type: integer
+        customerName:
+          type: string
+        customerPhone:
+          type: string
+        service:
+          type: string
+        status:
+          type: string
+          enum: [pending, accepted, rejected, completed, cancelled]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - saloonId
+        - slotId
+        - customerId
+        - customerName
+        - customerPhone
+        - service
+        - status
+        - createdAt
+    BookingWithSlot:
+      allOf:
+        - $ref: "#/components/schemas/Booking"
+        - type: object
+          properties:
+            slot:
+              $ref: "#/components/schemas/TimeSlot"
+    BookingWithSaloonAndSlot:
+      allOf:
+        - $ref: "#/components/schemas/Booking"
+        - type: object
+          properties:
+            slot:
+              $ref: "#/components/schemas/TimeSlot"
+            saloon:
+              $ref: "#/components/schemas/Saloon"
+    CreateBookingRequest:
+      type: object
+      properties:
+        saloonId:
+          type: integer
+        slotId:
+          type: integer
+        customerName:
+          type: string
+        customerPhone:
+          type: string
+        service:
+          type: string
+      required:
+        - saloonId
+        - slotId
+        - customerName
+        - customerPhone
+        - service

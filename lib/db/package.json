@@ -6,10 +6,16 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "scripts": {
+    "test": "jest"
+  },
   "dependencies": {
-    "mongoose": "^8.18.0"
+    "mongoose": "^8.18.0",
+    "mongodb-memory-server": "^10.1.2"
   },
   "devDependencies": {
-    "@types/node": "catalog:"
+    "@types/node": "catalog:",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.0"
   }
 }

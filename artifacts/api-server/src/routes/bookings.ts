@@ -1,13 +1,18 @@
+// Booking management routes for the Saloon Manager API
+// Handles creating, viewing, and managing bookings
+
 import { Router } from "express";
 import { BookingModel, SaloonModel, TimeSlotModel, getNextSequence } from "@workspace/db";
 import { verifyToken, type AuthRequest } from "../middlewares/auth.js";
 
 const router = Router();
 
+// Helper function to parse ID parameters from request
 function parseIdParam(value: string | string[]): number {
   return parseInt(Array.isArray(value) ? value[0] : value, 10);
 }
 
+// POST /bookings - Create a new booking request (customer only)
 router.post("/", verifyToken, async (req: AuthRequest, res) => {
   try {
     const { saloonId, slotId, customerName, customerPhone, service } = req.body;
@@ -23,11 +28,13 @@ router.post("/", verifyToken, async (req: AuthRequest, res) => {
       return res.status(400).json({ success: false, error: "Slot does not belong to the selected saloon" });
     }
 
+    // Check if slot is already accepted
     const acceptedBooking = await BookingModel.findOne({ slotId: slotIdNumber, status: "accepted" }).exec();
     if (acceptedBooking) {
       return res.status(400).json({ success: false, error: "Slot already booked" });
     }
 
+    // Check if user already has a pending booking for this slot
     const existingMyBooking = await BookingModel.findOne({
       slotId: slotIdNumber,
       customerId: req.userId!,
@@ -57,6 +64,7 @@ router.post("/", verifyToken, async (req: AuthRequest, res) => {
   }
 });
 
+// GET /bookings/my - Get user's bookings with saloon and slot details
 router.get("/my", verifyToken, async (req: AuthRequest, res) => {
   try {
     const bookings = await BookingModel.find({ customerId: req.userId! }).sort({ createdAt: 1 }).exec();
@@ -83,6 +91,7 @@ router.get("/my", verifyToken, async (req: AuthRequest, res) => {
   }
 });
 
+// PATCH /bookings/:id/respond - Accept or reject a booking (owner only)
 router.patch("/:id/respond", verifyToken, async (req: AuthRequest, res) => {
   try {
     const bookingId = parseIdParam(req.params.id);
@@ -105,6 +114,7 @@ router.patch("/:id/respond", verifyToken, async (req: AuthRequest, res) => {
       { new: true },
     ).exec();
 
+    // If accepted, reject all other pending bookings for this slot
     if (status === "accepted") {
       await BookingModel.updateMany(
         { slotId: booking.slotId, status: "pending" },
@@ -118,6 +128,7 @@ router.patch("/:id/respond", verifyToken, async (req: AuthRequest, res) => {
   }
 });
 
+// PATCH /bookings/:id/cancel - Cancel a pending booking (customer only)
 router.patch("/:id/cancel", verifyToken, async (req: AuthRequest, res) => {
   try {
     const bookingId = parseIdParam(req.params.id);

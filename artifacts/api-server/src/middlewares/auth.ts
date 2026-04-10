@@ -1,13 +1,19 @@
+// Authentication middleware for the Saloon Manager API
+// Handles JWT token verification and role-based access control
+
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 
+// JWT secret key from environment or default
 const JWT_SECRET = process.env.SESSION_SECRET || "mysaloon-secret-key";
 
+// Extended Request interface with user authentication data
 export interface AuthRequest extends Request {
   userId?: number;
   userRole?: string;
 }
 
+// Middleware to verify JWT token from Authorization header
 export function verifyToken(req: AuthRequest, res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
@@ -27,6 +33,7 @@ export function verifyToken(req: AuthRequest, res: Response, next: NextFunction)
   }
 }
 
+// Middleware to ensure user has owner role
 export function requireOwner(req: AuthRequest, res: Response, next: NextFunction): void {
   if (req.userRole !== "owner") {
     res.status(403).json({ success: false, error: "Owner access required" });
@@ -36,6 +43,7 @@ export function requireOwner(req: AuthRequest, res: Response, next: NextFunction
   return;
 }
 
+// Generate JWT token for authenticated user
 export function signToken(userId: number, role: string): string {
   return jwt.sign({ userId, role }, JWT_SECRET, { expiresIn: "30d" });
 }

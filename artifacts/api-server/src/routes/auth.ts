@@ -1,3 +1,6 @@
+// Authentication routes for the Saloon Manager API
+// Handles user registration, login, and profile retrieval
+
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { UserModel, getNextSequence, type User } from "@workspace/db";
@@ -5,10 +8,12 @@ import { signToken, verifyToken, type AuthRequest } from "../middlewares/auth.js
 
 const router = Router();
 
+// Helper function to return public user data (without password)
 function toPublicUser(user: User) {
   return { id: user.id, name: user.name, phone: user.phone, role: user.role };
 }
 
+// POST /auth/register - Register a new user
 router.post("/register", async (req, res) => {
   try {
     const { name, phone, password, role = "customer" } = req.body;
@@ -22,11 +27,12 @@ router.post("/register", async (req, res) => {
       return res.status(409).json({ success: false, error: "Phone number already registered" });
     }
 
+    // Create new user with auto-generated ID
     const user = await UserModel.create({
       id: await getNextSequence("users"),
       name: name.trim(),
       phone: normalizedPhone,
-      password: await bcrypt.hash(password, 10),
+      password: await bcrypt.hash(password, 10), // Hash password with salt rounds
       role: role === "owner" ? "owner" : "customer",
     });
 
@@ -40,6 +46,7 @@ router.post("/register", async (req, res) => {
   }
 });
 
+// POST /auth/login - Authenticate user and return token
 router.post("/login", async (req, res) => {
   try {
     const { phone, password } = req.body;
@@ -67,6 +74,7 @@ router.post("/login", async (req, res) => {
   }
 });
 
+// GET /auth/me - Get current user profile (requires authentication)
 router.get("/me", verifyToken, async (req: AuthRequest, res) => {
   try {
     const user = await UserModel.findOne({ id: req.userId! }).exec();
