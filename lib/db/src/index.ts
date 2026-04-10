@@ -1,16 +1,19 @@
+// Database models and connection management for the Saloon Manager
+// Uses Mongoose with MongoDB for data persistence
+
 import mongoose, { Schema, type Model } from "mongoose";
+import { MongoMemoryServer } from "mongodb-memory-server";
 
-const configuredMongoUri = process.env.MONGODB_URI;
-
-if (!configuredMongoUri) {
-  throw new Error("MONGODB_URI must be set. Did you forget to provision a MongoDB database?");
-}
+// Get MongoDB URI from environment
+const configuredMongoUri = process.env.MONGODB_URI || "mongodb://localhost:27017/saloon";
 
 const mongoUri = configuredMongoUri;
 
+// Type definitions for user roles and booking statuses
 type UserRole = "customer" | "owner";
 type BookingStatus = "pending" | "accepted" | "rejected" | "completed" | "cancelled";
 
+// User interface - represents registered users (customers and owners)
 export interface User {
   id: number;
   name: string;
@@ -20,6 +23,7 @@ export interface User {
   createdAt: Date;
 }
 
+// Saloon interface - represents barber shops/saloons
 export interface Saloon {
   id: number;
   ownerId: number;
@@ -37,6 +41,7 @@ export interface Saloon {
   createdAt: Date;
 }
 
+// TimeSlot interface - represents available time slots for bookings
 export interface TimeSlot {
   id: number;
   saloonId: number;
@@ -45,6 +50,7 @@ export interface TimeSlot {
   isBlocked: boolean;
 }
 
+// Booking interface - represents customer booking requests
 export interface Booking {
   id: number;
   saloonId: number;
@@ -174,9 +180,17 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
   }
 
   if (!globalThis.__workspaceMongoConnectionPromise) {
-    globalThis.__workspaceMongoConnectionPromise = mongoose.connect(mongoUri, {
-      autoIndex: true,
-    });
+    if (mongoUri.startsWith('mongodb://localhost') || mongoUri.includes('127.0.0.1')) {
+      const mongoServer = await MongoMemoryServer.create();
+      const memoryUri = mongoServer.getUri();
+      globalThis.__workspaceMongoConnectionPromise = mongoose.connect(memoryUri, {
+        autoIndex: true,
+      });
+    } else {
+      globalThis.__workspaceMongoConnectionPromise = mongoose.connect(mongoUri, {
+        autoIndex: true,
+      });
+    }
   }
 
   return globalThis.__workspaceMongoConnectionPromise;
@@ -217,4 +231,4 @@ export async function getNextSequenceRange(name: string, count: number): Promise
   return Array.from({ length: count }, (_, index) => start + index);
 }
 
-void connectToDatabase();
+// void connectToDatabase();

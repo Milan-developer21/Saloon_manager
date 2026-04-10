@@ -6,8 +6,15 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "scripts": {
+    "test": "jest"
+  },
   "dependencies": {
     "@tanstack/react-query": "catalog:"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.0"
   },
   "peerDependencies": {
     "react": ">=18"
